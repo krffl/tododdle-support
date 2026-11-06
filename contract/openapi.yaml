@@ -1,0 +1,411 @@
+openapi: 3.1.0
+info:
+  title: ToDoddle Support SDK API
+  version: 1.0.0
+  summary: One-way in-app issue reporting into a ToDoddle Support project.
+  license:
+    name: Proprietary
+    url: https://tododdle.com/terms
+  description: |
+    Every ToDoddle Support SDK (JavaScript, React Native, Swift, Kotlin and Flutter) follows this contract.
+
+    - Reports go one way. A report becomes a Support ticket in the project's intake lane.
+      The reporter gets no email, no sign-in link and no replies.
+    - The public key (`tdsk_pub_…`) can only read the report form and submit reports.
+      It cannot read tickets, change anything else or cause any email to the reporter.
+    - Reporter details are optional and unverified. Proving who the reporter is is the job of the
+      app that embeds the SDK. ToDoddle labels these details as unverified.
+    - Nothing is collected automatically. Screenshots and other attachments are always chosen
+      and previewed by the person reporting.
+
+    Versioning: the path carries the major version. Changes inside v1 only add optional fields,
+    new error codes and new enum values. Clients must ignore unknown response fields and treat
+    an unknown error code by its HTTP status.
+servers:
+  - url: https://app.tododdle.com/api/support/sdk/v1
+    description: Production
+  - url: https://app-stg.tododdle.com/api/support/sdk/v1
+    description: Staging (for ToDoddle development only)
+security:
+  - publicKey: []
+tags:
+  - name: Config
+    description: The report form, wording and branding the SDK dialog shows.
+  - name: Reports
+    description: Send one-way reports, with optional attachments.
+paths:
+  /config:
+    get:
+      tags: [Config]
+      operationId: getConfig
+      summary: Read the report form, wording and branding for the dialog.
+      description: |
+        Cache the response and send `If-None-Match` with the last `ETag`. Apps should keep the last
+        good config so the dialog still opens offline. The response is the same for every caller
+        with the same key, and it contains nothing private.
+      parameters:
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/SdkVersion'
+        - name: If-None-Match
+          in: header
+          required: false
+          schema: { type: string }
+      responses:
+        '200':
+          description: The current config.
+          headers:
+            ETag: { schema: { type: string } }
+            Cache-Control: { schema: { type: string }, description: 'For example `public, max-age=300`.' }
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Config' }
+        '304': { description: The cached config is still current. }
+        '401': { $ref: '#/components/responses/InvalidKey' }
+        '403': { $ref: '#/components/responses/Unavailable' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /reports:
+    post:
+      tags: [Reports]
+      operationId: createReport
+      summary: Send a report, or start one that has attachments.
+      description: |
+        Without attachments the report is received straight away (`201`, status `received`).
+
+        With attachments the report waits for its files (`201`, status `awaiting_uploads`).
+        Upload each file with an HTTP `PUT` of the raw bytes to its `uploadUrl`, with exactly the
+        returned `headers`. Then call `submit`. Reports that are not submitted within
+        `expiresAt` are discarded with their files.
+
+        Sending the same `idempotencyKey` again with the same key returns the first result
+        (`200`) and never creates a second ticket. Reusing a key with a different body returns
+        `409 IDEMPOTENCY_KEY_REUSED`.
+      parameters:
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/SdkVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReportRequest' }
+      responses:
+        '201':
+          description: Report received, or waiting for uploads.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportResponse' }
+        '200':
+          description: The same idempotency key was already used; this is the first result.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportResponse' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/InvalidKey' }
+        '403': { $ref: '#/components/responses/Unavailable' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '413': { $ref: '#/components/responses/TooLarge' }
+        '422': { $ref: '#/components/responses/InvalidFields' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /reports/{reportId}/submit:
+    post:
+      tags: [Reports]
+      operationId: submitReport
+      summary: Finish a report after its attachments are uploaded.
+      description: |
+        Send the `submitToken` from `createReport`. Calling submit again after success returns the
+        same result. A failed upload can be retried with the same `uploadUrl` until `expiresAt`.
+      parameters:
+        - name: reportId
+          in: path
+          required: true
+          schema: { type: string, pattern: '^rpt_[A-Za-z0-9]{16,32}$' }
+        - $ref: '#/components/parameters/AppId'
+        - $ref: '#/components/parameters/SdkVersion'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [submitToken]
+              properties:
+                submitToken: { type: string, minLength: 32, maxLength: 128 }
+      responses:
+        '200':
+          description: Report received.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ReportResponse' }
+        '401': { $ref: '#/components/responses/InvalidKey' }
+        '403': { $ref: '#/components/responses/Unavailable' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Expired' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+components:
+  securitySchemes:
+    publicKey:
+      type: apiKey
+      in: header
+      name: X-Tododdle-Key
+      description: |
+        A project's public SDK key, `tdsk_pub_` followed by 32 letters and digits. It is safe to
+        ship inside an app. Test keys (`tdsk_test_…`) work the same way, and their tickets are
+        marked as test reports.
+  parameters:
+    AppId:
+      name: X-Tododdle-App-Id
+      in: header
+      required: false
+      description: |
+        The iOS bundle ID or Android package name. If the key lists allowed app IDs, other values
+        are refused. This is a filter against mistakes, not proof of identity. Browsers send no
+        app ID; their `Origin` is checked against the key's allowed origins instead.
+      schema: { type: string, maxLength: 200 }
+    SdkVersion:
+      name: X-Tododdle-Sdk
+      in: header
+      required: false
+      description: SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`.
+      schema: { type: string, maxLength: 60, pattern: '^[a-z-]+/[0-9A-Za-z.+-]+$' }
+  responses:
+    BadRequest:
+      description: Malformed JSON, an unknown property or a value of the wrong type.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    InvalidKey:
+      description: Missing, unknown or revoked key, or an origin or app ID the key does not allow.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unavailable:
+      description: The Support module is off, external intake is paused, or the subscription plan has no Support module.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    NotFound:
+      description: No such report for this key.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Conflict:
+      description: Idempotency key reused with a different body, or attachments still uploading.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Expired:
+      description: The report was not submitted in time and has been discarded. Start again.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    TooLarge:
+      description: The body, a field or a declared attachment is over its limit.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    InvalidFields:
+      description: One or more fields failed validation. `fields` maps each field key to a message the app can show.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    RateLimited:
+      description: Too many requests. Wait for `Retry-After` seconds, then retry with the same idempotency key.
+      headers:
+        Retry-After: { schema: { type: integer, minimum: 1 } }
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+              description: Stable machine code. New codes may be added.
+              enum:
+                - INVALID_REQUEST
+                - INVALID_KEY
+                - KEY_REVOKED
+                - ORIGIN_NOT_ALLOWED
+                - APP_NOT_ALLOWED
+                - SUPPORT_UNAVAILABLE
+                - INVALID_FIELDS
+                - FIELDS_CHANGED
+                - PAYLOAD_TOO_LARGE
+                - TOO_MANY_ATTACHMENTS
+                - ATTACHMENT_TYPE_NOT_ALLOWED
+                - IDEMPOTENCY_KEY_REUSED
+                - ATTACHMENTS_NOT_READY
+                - REPORT_NOT_FOUND
+                - REPORT_EXPIRED
+                - RATE_LIMITED
+            message:
+              type: string
+              description: Plain English, safe to log. Apps should show their own wording.
+            fields:
+              type: object
+              description: For `INVALID_FIELDS` and `FIELDS_CHANGED`, a message per field key.
+              additionalProperties: { type: string }
+            requestId: { type: string }
+    Config:
+      type: object
+      required: [project, form, wording, theme]
+      properties:
+        project:
+          type: object
+          required: [name]
+          properties:
+            name: { type: string, description: Display name for the dialog title. }
+            logoUrl: { type: [string, 'null'], format: uri }
+        form:
+          type: object
+          required: [version, types, fields, attachments]
+          properties:
+            version:
+              type: integer
+              minimum: 1
+              description: Increases whenever the project changes the form. Send it back as `formVersion`.
+            types:
+              type: array
+              description: Report types the project offers, in order. Always at least one.
+              items:
+                type: object
+                required: [value, label]
+                properties:
+                  value: { $ref: '#/components/schemas/ReportType' }
+                  label: { type: string, maxLength: 40 }
+            title:
+              type: object
+              required: [enabled, required, label]
+              properties:
+                enabled: { type: boolean }
+                required: { type: boolean }
+                label: { type: string, maxLength: 80 }
+                maxLength: { type: integer, const: 160 }
+            description:
+              type: object
+              required: [required, label]
+              properties:
+                required: { type: boolean }
+                label: { type: string, maxLength: 80 }
+                placeholder: { type: string, maxLength: 200 }
+                maxLength: { type: integer, const: 10000 }
+            fields:
+              type: array
+              maxItems: 20
+              items: { $ref: '#/components/schemas/FieldDefinition' }
+            attachments:
+              type: object
+              required: [enabled, maxCount, maxBytes, contentTypes]
+              properties:
+                enabled: { type: boolean }
+                maxCount: { type: integer, maximum: 5 }
+                maxBytes: { type: integer, description: 'Per file. 10 MB in v1.' }
+                contentTypes:
+                  type: array
+                  items:
+                    type: string
+                    enum: [image/png, image/jpeg, image/webp, image/gif, application/pdf, text/plain]
+        wording:
+          type: object
+          required: [dialogTitle, submitLabel, thankYouTitle, thankYouMessage]
+          properties:
+            dialogTitle: { type: string, maxLength: 120 }
+            intro: { type: string, maxLength: 500 }
+            submitLabel: { type: string, maxLength: 40 }
+            thankYouTitle: { type: string, maxLength: 120 }
+            thankYouMessage: { type: string, maxLength: 500, description: 'Must not promise a reply; reports are one way.' }
+        theme:
+          type: object
+          description: From the project's shared portal branding, after the readable-colour fixes.
+          required: [accent, onAccent, corners]
+          properties:
+            accent: { $ref: '#/components/schemas/HexColor' }
+            onAccent: { $ref: '#/components/schemas/HexColor' }
+            corners: { type: string, enum: [rounded, square] }
+            headingFont: { type: string, description: 'A font id from the portal list. SDKs may ignore it and use the app font.' }
+    FieldDefinition:
+      type: object
+      required: [key, label, type, required]
+      properties:
+        key: { type: string, pattern: '^[a-z0-9-]{1,40}$', description: Stable; never reused for a different meaning. }
+        label: { type: string, maxLength: 120 }
+        type: { type: string, enum: [SHORT_TEXT, LONG_TEXT, SELECT] }
+        required: { type: boolean }
+        options: { type: array, items: { type: string, maxLength: 100 }, minItems: 2, maxItems: 20, description: For SELECT only. }
+        maxLength: { type: integer, description: '300 for SHORT_TEXT, 5000 for LONG_TEXT.' }
+    ReportType:
+      type: string
+      enum: [problem, feedback, question]
+    ReportRequest:
+      type: object
+      additionalProperties: false
+      required: [idempotencyKey, type, formVersion]
+      properties:
+        idempotencyKey:
+          type: string
+          pattern: '^[A-Za-z0-9_-]{16,64}$'
+          description: Generate once per report (for example a UUID without dashes) and reuse it on every retry.
+        type: { $ref: '#/components/schemas/ReportType' }
+        formVersion: { type: integer, minimum: 1 }
+        title: { type: string, maxLength: 160 }
+        description: { type: string, maxLength: 10000 }
+        fields:
+          type: object
+          maxProperties: 20
+          description: |
+            Values by field key: a string for text fields and one of the options for SELECT.
+            If `formVersion` is older than the current form, the server validates against the
+            current form; unknown keys are dropped and a missing required field returns
+            `422 FIELDS_CHANGED`, so the app can refetch the config.
+          additionalProperties: { type: string, maxLength: 5000 }
+        context: { $ref: '#/components/schemas/ReportContext' }
+        reporter: { $ref: '#/components/schemas/Reporter' }
+        attachments:
+          type: array
+          maxItems: 5
+          items:
+            type: object
+            additionalProperties: false
+            required: [fileName, contentType, size]
+            properties:
+              fileName: { type: string, minLength: 1, maxLength: 255 }
+              contentType: { type: string, enum: [image/png, image/jpeg, image/webp, image/gif, application/pdf, text/plain] }
+              size: { type: integer, minimum: 1, maximum: 10485760 }
+    ReportContext:
+      type: object
+      additionalProperties: false
+      description: Facts the SDK fills in. All optional. Never include URL query strings or personal data.
+      properties:
+        platform: { type: string, enum: [web, ios, android, flutter, react-native] }
+        appVersion: { type: string, maxLength: 50 }
+        build: { type: string, maxLength: 50 }
+        osName: { type: string, maxLength: 50 }
+        osVersion: { type: string, maxLength: 50 }
+        deviceModel: { type: string, maxLength: 100 }
+        locale: { type: string, maxLength: 35 }
+        screen: { type: string, maxLength: 200, description: 'Screen or route name, without query string.' }
+        extra:
+          type: object
+          maxProperties: 20
+          description: App-defined key/value context, shown on the ticket as is.
+          additionalProperties: { type: string, maxLength: 500 }
+    Reporter:
+      type: object
+      additionalProperties: false
+      description: Optional and unverified. ToDoddle never emails this address.
+      properties:
+        name: { type: string, maxLength: 100 }
+        email: { type: string, format: email, maxLength: 254 }
+        customerReference: { type: string, maxLength: 100, description: 'The app''s own user or account ID.' }
+    ReportResponse:
+      type: object
+      required: [reportId, status]
+      properties:
+        reportId: { type: string, pattern: '^rpt_[A-Za-z0-9]{16,32}$', description: Opaque; safe to show as a reference. }
+        status: { type: string, enum: [received, awaiting_uploads] }
+        submitToken:
+          type: string
+          description: Only with `awaiting_uploads`. Send it to `submit`. Keep it private to this report.
+        expiresAt: { type: string, format: date-time, description: Only with `awaiting_uploads`. }
+        uploads:
+          type: array
+          description: Only with `awaiting_uploads`, in the same order as the declared attachments.
+          items:
+            type: object
+            required: [uploadUrl, headers, expiresAt]
+            properties:
+              uploadUrl: { type: string, format: uri }
+              headers: { type: object, additionalProperties: { type: string } }
+              expiresAt: { type: string, format: date-time }
+    HexColor:
+      type: string
+      pattern: '^#[0-9a-f]{6}$'
