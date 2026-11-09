@@ -175,6 +175,6 @@ The SDK version is the root `VERSION` file. `TododdleSupport.sdkVersion` (sent a
 `X-Tododdle-Sdk: swift/<version>`) is generated from it. To release:
 
 1. Set `VERSION` (for example `1.0.0`).
-2. Run `scripts/sync-swift-version.sh`. A test fails if `SDKVersion.swift` and `VERSION` differ.
+2. Run `npm run sync-version` at the repository root. A test fails if `SDKVersion.swift` and `VERSION` differ.
 3. Commit, then tag the commit with the version (for example `1.0.0`). Swift Package Manager
    installs from the tag.

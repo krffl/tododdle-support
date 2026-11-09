@@ -125,6 +125,19 @@ class SupportClientTest {
     }
 
     @Test
+    fun serverErrorsOutsideThePolicyAreNotRetried() = runBlocking {
+        server.enqueue(MockResponse().setResponseCode(501))
+        val sleeper = RecordingSleeper()
+        val error = expectError {
+            newSupport(baseUrl, sleeper).report(Report(type = ReportType.PROBLEM, description = "x", formVersion = 3))
+        }
+        assertEquals(501, error.httpStatus)
+        assertFalse(error.isRetryable)
+        assertEquals(1, server.requestCount)
+        assertEquals(emptyList<Long>(), sleeper.delays)
+    }
+
+    @Test
     fun networkErrorsAreRetriedThenReported() = runBlocking {
         repeat(3) { server.enqueue(MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START)) }
         val error = expectError {

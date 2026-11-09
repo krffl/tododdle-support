@@ -17,7 +17,7 @@ final class ContractSyncTests: XCTestCase {
     func testSDKVersionMatchesVersionFile() throws {
         let version = try String(contentsOf: Fixtures.repositoryRoot.appendingPathComponent("VERSION"), encoding: .utf8)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        XCTAssertEqual(TododdleSupport.sdkVersion, version, "Run scripts/sync-swift-version.sh.")
+        XCTAssertEqual(TododdleSupport.sdkVersion, version, "Run npm run sync-version.")
         // The contract's pattern for X-Tododdle-Sdk.
         XCTAssertNotNil("swift/\(TododdleSupport.sdkVersion)".range(of: "^[a-z-]+/[0-9A-Za-z.+-]+$", options: .regularExpression))
     }

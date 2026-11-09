@@ -21,13 +21,13 @@ public class TododdleSupportException(
 
     /**
      * True when sending the same report again later may succeed: network errors, timeouts,
-     * rate limits and server errors. Retry with the same [Report] so the idempotency key is reused.
+     * rate limits and the server errors in the shared retry policy (500, 502, 503, 504). Retry with the same [Report] so the idempotency key is reused.
      */
     public val isRetryable: Boolean
         get() = when {
             code == ErrorCode.NETWORK_ERROR -> true
             httpStatus == null -> false
-            else -> httpStatus == 408 || httpStatus == 429 || httpStatus >= 500
+            else -> httpStatus in com.tododdle.support.internal.RetryPolicy.RETRY_STATUSES
         }
 
     override fun toString(): String =

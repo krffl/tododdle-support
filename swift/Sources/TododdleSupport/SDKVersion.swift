@@ -1,4 +1,4 @@
-// Generated from /VERSION by scripts/sync-swift-version.sh. Do not edit by hand.
+// Generated from /VERSION by scripts/sync-version.mjs (`npm run sync-version`). Do not edit by hand.
 // A release changes /VERSION, runs the script, commits, then tags. A test fails if they differ.
 
 extension TododdleSupport {

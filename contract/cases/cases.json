@@ -1,5 +1,5 @@
 {
-  "$comment": "Shared conformance cases. Every SDK runs all of them against a local mock server that replays `exchanges` in order, then checks `expect`. A request is matched by method and path; `request.must` lists what the SDK has to send. `{{baseUrl}}` is the mock server's origin.",
+  "$comment": "Shared conformance cases. Every SDK runs all of them against a local mock server that replays `exchanges` in order, then checks `expect`. A request is matched by method and path; `request.must` lists what the SDK has to send. `{{baseUrl}}` is the mock server's origin. `minDelayMs` is measured from the first request of the case to the last. `report` cases have no GET /config exchange: pass the case `config` to the SDK directly. Field errors in `fields` are keyed by `title`, `description`, `type` or the custom field key.",
   "key": "tdsk_pub_TESTKEY0000000000000000000000000",
   "config": {
     "project": { "name": "Mosslight", "logoUrl": null },
@@ -148,7 +148,7 @@
     }
   ],
   "retryPolicy": {
-    "$comment": "All SDKs follow this. Retry only 429, 408, 5xx and network errors. Honour Retry-After (seconds). Otherwise back off 1s, 2s, 4s. At most 3 attempts in total for one call. Never retry 400, 401, 403, 404, 409, 410, 413 or 422. Always reuse the same idempotencyKey.",
+    "$comment": "All SDKs follow this for every request: GET /config, POST /reports, the upload PUTs and submit. Retry only the statuses in retryStatuses (no other 5xx) and network errors. Honour Retry-After (seconds); if it is more than 60, do not wait: fail the call with RATE_LIMITED and retryAfterSeconds so the app or offline queue can retry later. Otherwise wait backoffSeconds[n] before attempt n+2 (1 s, then 2 s; the third value is used only if maxAttempts grows). At most maxAttempts attempts in total for one call. Never retry 400, 401, 403, 404, 409, 410, 413 or 422. Always reuse the same idempotencyKey. When an error response has no contract body, use code RATE_LIMITED for 429 and HTTP_ERROR otherwise.",
     "maxAttempts": 3,
     "backoffSeconds": [1, 2, 4],
     "retryStatuses": [408, 429, 500, 502, 503, 504]

@@ -194,7 +194,7 @@ components:
       description: One or more fields failed validation. `fields` maps each field key to a message the app can show.
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
     RateLimited:
-      description: Too many requests. Wait for `Retry-After` seconds, then retry with the same idempotency key.
+      description: Too many requests. Wait for `Retry-After` seconds, then retry with the same idempotency key. SDKs wait at most 60 seconds inside one call; a longer wait fails the call with `RATE_LIMITED` and `retryAfterSeconds`.
       headers:
         Retry-After: { schema: { type: integer, minimum: 1 } }
       content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
