@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>ToDoddle Support web example</title>
+    <style>
+      body {
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      button {
+        font: inherit;
+        padding: 0.5rem 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>ToDoddle Support web example</h1>
+    <p>
+      Build the packages (<code>npm run build</code> at the repository root), serve the repository root (<code
+        >npx serve .</code
+      >) and open <code>/examples/web/?key=tdsk_test_…</code>. Add the page's origin to the key's allowed origins in
+      ToDoddle.
+    </p>
+    <p>
+      <button id="dialog" type="button">Report a problem</button>
+      <button id="headless" type="button">Send a headless test report</button>
+    </p>
+    <pre id="output" aria-live="polite"></pre>
+
+    <script type="module">
+      import { createTododdleSupport, isTododdleSupportError } from '../../packages/js/dist/index.js';
+      import { openReportDialog } from '../../packages/js/dist/dialog.js';
+
+      const params = new URLSearchParams(location.search);
+      const output = document.getElementById('output');
+      const support = createTododdleSupport({
+        key: params.get('key') ?? 'tdsk_test_REPLACE_ME',
+        baseUrl: params.get('baseUrl') ?? undefined,
+        storage: window.localStorage,
+        offlineQueue: true,
+        defaultContext: { platform: 'web', appVersion: 'example' },
+      });
+
+      // Send anything queued while offline.
+      window.addEventListener('online', () => void support.flushQueue());
+
+      document.getElementById('dialog').addEventListener('click', async () => {
+        try {
+          // `location.pathname` has no query string; never send `location.href`.
+          const result = await openReportDialog(support, { context: { screen: location.pathname } });
+          output.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+          output.textContent = isTododdleSupportError(error) ? `${error.code}: ${error.message}` : String(error);
+        }
+      });
+
+      document.getElementById('headless').addEventListener('click', async () => {
+        try {
+          const config = await support.getConfig();
+          const fields = {};
+          for (const field of config.form.fields) {
+            if (field.required) fields[field.key] = field.type === 'SELECT' ? field.options[0] : 'Example';
+          }
+          const result = await support.report({
+            type: config.form.types[0].value,
+            title: 'Example report',
+            description: 'Sent from examples/web.',
+            fields,
+          });
+          output.textContent = JSON.stringify(result, null, 2);
+        } catch (error) {
+          output.textContent = isTododdleSupportError(error)
+            ? JSON.stringify({ code: error.code, httpStatus: error.httpStatus, fields: error.fields }, null, 2)
+            : String(error);
+        }
+      });
+    </script>
+  </body>
+</html>

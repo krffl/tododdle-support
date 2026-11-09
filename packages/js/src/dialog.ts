@@ -267,6 +267,7 @@ function showDialog(
     event.preventDefault();
     if (submit.disabled) return;
     formError.hidden = true;
+    showErrors({});
     submit.disabled = true;
     submit.textContent = 'Sending…';
     support
