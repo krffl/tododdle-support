@@ -7,7 +7,7 @@ export default defineConfig({
       provider: 'v8',
       include: ['src/**/*.ts'],
       exclude: ['src/generated/**'],
-      thresholds: { lines: 85, functions: 85, branches: 75, statements: 85 },
+      thresholds: { lines: 95, functions: 93, branches: 85, statements: 93 },
     },
   },
 });
