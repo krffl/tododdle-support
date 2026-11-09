@@ -14,7 +14,7 @@ Planned packages (one folder each, with an example app):
 | `packages/js` | `@tododdle/support` (headless core for web and React Native) |
 | `packages/react-native` | `@tododdle/support-react-native` |
 | `swift` | `TododdleSupport` (Swift Package Manager) |
-| `kotlin` | `com.tododdle:support` |
+| `kotlin` | `com.github.krffl.tododdle-support:support` (JitPack), plus `support-compose` and `support-offline` |
 | `flutter` | `tododdle_support` |
 
 Reports go one way: the reporter gets no email or replies. The public key (`tdsk_pub_…`) can only

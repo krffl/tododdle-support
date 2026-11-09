@@ -1,0 +1,10 @@
+# JitPack builds the Android library from tags of this repository.
+# The Gradle build lives in kotlin/, so the install step runs there and publishes
+# every module to the local Maven repository, where JitPack collects them:
+#   com.github.krffl.tododdle-support:support:<tag>
+#   com.github.krffl.tododdle-support:support-compose:<tag>
+#   com.github.krffl.tododdle-support:support-offline:<tag>
+jdk:
+  - openjdk17
+install:
+  - cd kotlin && ./gradlew --no-daemon --stacktrace publishToMavenLocal
