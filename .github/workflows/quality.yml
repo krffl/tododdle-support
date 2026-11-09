@@ -1,0 +1,55 @@
+name: Quality
+
+# One job per SDK. Add the Swift, Kotlin and Flutter jobs next to `js` below; keep each job
+# self-contained so a failure points at one SDK.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  js:
+    name: JavaScript and React Native
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check version and generated contract types
+        run: |
+          npm run check:version
+          npm run check:generated
+
+      - name: Check formatting and lint
+        run: |
+          npm run format:check
+          npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      - name: Test (unit, dialog, React Native sheet and shared conformance cases)
+        run: npm run test:coverage
+
+      - name: Audit dependencies and package contents
+        run: |
+          npm audit --omit=dev --audit-level=low
+          npm audit --audit-level=high
+          npm pack --dry-run --workspaces
