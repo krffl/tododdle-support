@@ -1,0 +1,16 @@
+{
+  "name": "@krffl/tododdle-support-react-native",
+  "version": "0.0.1",
+  "description": "React Native report sheet for ToDoddle Support.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/krffl/tododdle-support.git",
+    "directory": "packages/react-native"
+  },
+  "homepage": "https://github.com/krffl/tododdle-support#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": ["README.md"]
+}

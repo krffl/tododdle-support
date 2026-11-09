@@ -1,0 +1,16 @@
+{
+  "name": "@krffl/tododdle-support",
+  "version": "0.0.1",
+  "description": "Headless one-way in-app issue reporting for ToDoddle Support (web and React Native core).",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/krffl/tododdle-support.git",
+    "directory": "packages/js"
+  },
+  "homepage": "https://github.com/krffl/tododdle-support#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": ["README.md"]
+}
