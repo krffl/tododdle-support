@@ -1,0 +1,45 @@
+{
+  "name": "tododdle-support-workspace",
+  "private": true,
+  "description": "npm workspaces root for the ToDoddle Support JavaScript and React Native SDKs.",
+  "license": "UNLICENSED",
+  "workspaces": [
+    "packages/js",
+    "packages/react-native"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "build": "npm run build -w @krffl/tododdle-support && npm run build -w @krffl/tododdle-support-react-native",
+    "typecheck": "npm run build -w @krffl/tododdle-support && npm run typecheck --workspaces",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "generate:types": "npm run generate:types -w @krffl/tododdle-support",
+    "check:generated": "npm run generate:types && git diff --exit-code -- packages/js/src/generated",
+    "sync-version": "node scripts/sync-version.mjs",
+    "check:version": "node scripts/sync-version.mjs --check",
+    "test": "npm run check:version && npm run build && npm run test --workspaces",
+    "test:coverage": "npm run check:version && npm run build && npm run test:coverage --workspaces"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-test-renderer": "^19.3.1",
+    "@vitest/coverage-v8": "^5.1.0",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "happy-dom": "^21.0.4",
+    "openapi-typescript": "^7.13.0",
+    "prettier": "^3.9.10",
+    "react": "^19.3.1",
+    "react-native": "^0.88.1",
+    "react-test-renderer": "^19.3.1",
+    "tsup": "^9.0.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1",
+    "vitest": "^5.1.0"
+  }
+}

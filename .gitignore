@@ -10,3 +10,5 @@ local.properties
 .flutter-plugins*
 pubspec.lock
 .DS_Store
+coverage/
+*.tsbuildinfo

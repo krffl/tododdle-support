@@ -1,6 +1,6 @@
 {
   "name": "@krffl/tododdle-support",
-  "version": "0.0.1",
+  "version": "1.0.0-dev",
   "description": "Headless one-way in-app issue reporting for ToDoddle Support (web and React Native core).",
   "license": "UNLICENSED",
   "repository": {
@@ -8,9 +8,55 @@
     "url": "git+https://github.com/krffl/tododdle-support.git",
     "directory": "packages/js"
   },
-  "homepage": "https://github.com/krffl/tododdle-support#readme",
+  "homepage": "https://github.com/krffl/tododdle-support/tree/main/packages/js#readme",
+  "bugs": "https://github.com/krffl/tododdle-support/issues",
+  "keywords": [
+    "tododdle",
+    "support",
+    "bug-report",
+    "feedback",
+    "sdk"
+  ],
   "publishConfig": {
     "access": "public"
   },
-  "files": ["README.md"]
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./dialog": {
+      "import": {
+        "types": "./dist/dialog.d.ts",
+        "default": "./dist/dialog.js"
+      },
+      "require": {
+        "types": "./dist/dialog.d.cts",
+        "default": "./dist/dialog.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "generate:types": "openapi-typescript ../../contract/openapi.yaml -o src/generated/openapi.ts"
+  }
 }
