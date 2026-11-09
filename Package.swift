@@ -1,4 +1,4 @@
-// swift-tools-version:5.9
+// swift-tools-version:6.0
 // The Swift package lives in swift/. This root manifest lets Swift Package Manager install
 // straight from this repository's version tags.
 import PackageDescription
@@ -17,5 +17,6 @@ let package = Package(
             path: "swift/Tests/TododdleSupportTests",
             resources: [.copy("Resources")]
         ),
-    ]
+    ],
+    swiftLanguageModes: [.v6]
 )
