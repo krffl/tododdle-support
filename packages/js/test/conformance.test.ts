@@ -5,7 +5,7 @@
 import { readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { createTododdleSupport, isTododdleSupportError, RETRY_POLICY, SDK_VERSION } from '../src/index';
 import type { Config, ReportInput, ReportResult } from '../src/index';
@@ -50,7 +50,7 @@ interface CasesFile {
   retryPolicy: { maxAttempts: number; backoffSeconds: number[]; retryStatuses: number[] };
 }
 
-const casesPath = fileURLToPath(new URL('../../../contract/cases/cases.json', import.meta.url));
+const casesPath = join(import.meta.dirname, '../../../contract/cases/cases.json');
 const suite = JSON.parse(readFileSync(casesPath, 'utf8')) as CasesFile;
 
 interface Recorded {

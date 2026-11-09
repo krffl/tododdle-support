@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import type { Config, FetchLike } from '../src/index';
 
-const casesPath = fileURLToPath(new URL('../../../contract/cases/cases.json', import.meta.url));
+const casesPath = join(import.meta.dirname, '../../../contract/cases/cases.json');
 export const sharedConfig = (JSON.parse(readFileSync(casesPath, 'utf8')) as { config: Config }).config;
 
 export function cloneConfig(): Config {

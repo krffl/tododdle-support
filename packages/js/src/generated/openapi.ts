@@ -4,476 +4,492 @@
  */
 
 export interface paths {
-    "/config": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read the report form, wording and branding for the dialog.
-         * @description Cache the response and send `If-None-Match` with the last `ETag`. Apps should keep the last
-         *     good config so the dialog still opens offline. The response is the same for every caller
-         *     with the same key, and it contains nothing private.
-         */
-        get: operations["getConfig"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+  '/config': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/reports": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Send a report, or start one that has attachments.
-         * @description Without attachments the report is received straight away (`201`, status `received`).
-         *
-         *     With attachments the report waits for its files (`201`, status `awaiting_uploads`).
-         *     Upload each file with an HTTP `PUT` of the raw bytes to its `uploadUrl`, with exactly the
-         *     returned `headers`. Then call `submit`. Reports that are not submitted within
-         *     `expiresAt` are discarded with their files.
-         *
-         *     Sending the same `idempotencyKey` again with the same key returns the first result
-         *     (`200`) and never creates a second ticket. Reusing a key with a different body returns
-         *     `409 IDEMPOTENCY_KEY_REUSED`.
-         */
-        post: operations["createReport"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    /**
+     * Read the report form, wording and branding for the dialog.
+     * @description Cache the response and send `If-None-Match` with the last `ETag`. Apps should keep the last
+     *     good config so the dialog still opens offline. The response is the same for every caller
+     *     with the same key, and it contains nothing private.
+     */
+    get: operations['getConfig'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/reports': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
-    "/reports/{reportId}/submit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Finish a report after its attachments are uploaded.
-         * @description Send the `submitToken` from `createReport`. Calling submit again after success returns the
-         *     same result. A failed upload can be retried with the same `uploadUrl` until `expiresAt`.
-         */
-        post: operations["submitReport"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
+    get?: never;
+    put?: never;
+    /**
+     * Send a report, or start one that has attachments.
+     * @description Without attachments the report is received straight away (`201`, status `received`).
+     *
+     *     With attachments the report waits for its files (`201`, status `awaiting_uploads`).
+     *     Upload each file with an HTTP `PUT` of the raw bytes to its `uploadUrl`, with exactly the
+     *     returned `headers`. Then call `submit`. Reports that are not submitted within
+     *     `expiresAt` are discarded with their files.
+     *
+     *     Sending the same `idempotencyKey` again with the same key returns the first result
+     *     (`200`) and never creates a second ticket. Reusing a key with a different body returns
+     *     `409 IDEMPOTENCY_KEY_REUSED`.
+     */
+    post: operations['createReport'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/reports/{reportId}/submit': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
     };
+    get?: never;
+    put?: never;
+    /**
+     * Finish a report after its attachments are uploaded.
+     * @description Send the `submitToken` from `createReport`. Calling submit again after success returns the
+     *     same result. A failed upload can be retried with the same `uploadUrl` until `expiresAt`.
+     */
+    post: operations['submitReport'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: {
-        Error: {
-            error: {
-                /**
-                 * @description Stable machine code. New codes may be added.
-                 * @enum {string}
-                 */
-                code: "INVALID_REQUEST" | "INVALID_KEY" | "KEY_REVOKED" | "ORIGIN_NOT_ALLOWED" | "APP_NOT_ALLOWED" | "SUPPORT_UNAVAILABLE" | "INVALID_FIELDS" | "FIELDS_CHANGED" | "PAYLOAD_TOO_LARGE" | "TOO_MANY_ATTACHMENTS" | "ATTACHMENT_TYPE_NOT_ALLOWED" | "IDEMPOTENCY_KEY_REUSED" | "ATTACHMENTS_NOT_READY" | "REPORT_NOT_FOUND" | "REPORT_EXPIRED" | "RATE_LIMITED";
-                /** @description Plain English, safe to log. Apps should show their own wording. */
-                message: string;
-                /** @description For `INVALID_FIELDS` and `FIELDS_CHANGED`, a message per field key. */
-                fields?: {
-                    [key: string]: string;
-                };
-                requestId?: string;
-            };
+  schemas: {
+    Error: {
+      error: {
+        /**
+         * @description Stable machine code. New codes may be added.
+         * @enum {string}
+         */
+        code:
+          | 'INVALID_REQUEST'
+          | 'INVALID_KEY'
+          | 'KEY_REVOKED'
+          | 'ORIGIN_NOT_ALLOWED'
+          | 'APP_NOT_ALLOWED'
+          | 'SUPPORT_UNAVAILABLE'
+          | 'INVALID_FIELDS'
+          | 'FIELDS_CHANGED'
+          | 'PAYLOAD_TOO_LARGE'
+          | 'TOO_MANY_ATTACHMENTS'
+          | 'ATTACHMENT_TYPE_NOT_ALLOWED'
+          | 'IDEMPOTENCY_KEY_REUSED'
+          | 'ATTACHMENTS_NOT_READY'
+          | 'REPORT_NOT_FOUND'
+          | 'REPORT_EXPIRED'
+          | 'RATE_LIMITED';
+        /** @description Plain English, safe to log. Apps should show their own wording. */
+        message: string;
+        /** @description For `INVALID_FIELDS` and `FIELDS_CHANGED`, a message per field key. */
+        fields?: {
+          [key: string]: string;
         };
-        Config: {
-            project: {
-                /** @description Display name for the dialog title. */
-                name: string;
-                /** Format: uri */
-                logoUrl?: string | null;
-            };
-            form: {
-                /** @description Increases whenever the project changes the form. Send it back as `formVersion`. */
-                version: number;
-                /** @description Report types the project offers, in order. Always at least one. */
-                types: {
-                    value: components["schemas"]["ReportType"];
-                    label: string;
-                }[];
-                title?: {
-                    enabled: boolean;
-                    required: boolean;
-                    label: string;
-                    /** @constant */
-                    maxLength?: 160;
-                };
-                description?: {
-                    required: boolean;
-                    label: string;
-                    placeholder?: string;
-                    /** @constant */
-                    maxLength?: 10000;
-                };
-                fields: components["schemas"]["FieldDefinition"][];
-                attachments: {
-                    enabled: boolean;
-                    maxCount: number;
-                    /** @description Per file. 10 MB in v1. */
-                    maxBytes: number;
-                    contentTypes: ("image/png" | "image/jpeg" | "image/webp" | "image/gif" | "application/pdf" | "text/plain")[];
-                };
-            };
-            wording: {
-                dialogTitle: string;
-                intro?: string;
-                submitLabel: string;
-                thankYouTitle: string;
-                /** @description Must not promise a reply; reports are one way. */
-                thankYouMessage: string;
-            };
-            /** @description From the project's shared portal branding, after the readable-colour fixes. */
-            theme: {
-                accent: components["schemas"]["HexColor"];
-                onAccent: components["schemas"]["HexColor"];
-                /** @enum {string} */
-                corners: "rounded" | "square";
-                /** @description A font id from the portal list. SDKs may ignore it and use the app font. */
-                headingFont?: string;
-            };
+        requestId?: string;
+      };
+    };
+    Config: {
+      project: {
+        /** @description Display name for the dialog title. */
+        name: string;
+        /** Format: uri */
+        logoUrl?: string | null;
+      };
+      form: {
+        /** @description Increases whenever the project changes the form. Send it back as `formVersion`. */
+        version: number;
+        /** @description Report types the project offers, in order. Always at least one. */
+        types: {
+          value: components['schemas']['ReportType'];
+          label: string;
+        }[];
+        title?: {
+          enabled: boolean;
+          required: boolean;
+          label: string;
+          /** @constant */
+          maxLength?: 160;
         };
-        FieldDefinition: {
-            /** @description Stable; never reused for a different meaning. */
-            key: string;
-            label: string;
-            /** @enum {string} */
-            type: "SHORT_TEXT" | "LONG_TEXT" | "SELECT";
-            required: boolean;
-            /** @description For SELECT only. */
-            options?: string[];
-            /** @description 300 for SHORT_TEXT, 5000 for LONG_TEXT. */
-            maxLength?: number;
+        description?: {
+          required: boolean;
+          label: string;
+          placeholder?: string;
+          /** @constant */
+          maxLength?: 10000;
         };
+        fields: components['schemas']['FieldDefinition'][];
+        attachments: {
+          enabled: boolean;
+          maxCount: number;
+          /** @description Per file. 10 MB in v1. */
+          maxBytes: number;
+          contentTypes: ('image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'application/pdf' | 'text/plain')[];
+        };
+      };
+      wording: {
+        dialogTitle: string;
+        intro?: string;
+        submitLabel: string;
+        thankYouTitle: string;
+        /** @description Must not promise a reply; reports are one way. */
+        thankYouMessage: string;
+      };
+      /** @description From the project's shared portal branding, after the readable-colour fixes. */
+      theme: {
+        accent: components['schemas']['HexColor'];
+        onAccent: components['schemas']['HexColor'];
         /** @enum {string} */
-        ReportType: "problem" | "feedback" | "question";
-        ReportRequest: {
-            /** @description Generate once per report (for example a UUID without dashes) and reuse it on every retry. */
-            idempotencyKey: string;
-            type: components["schemas"]["ReportType"];
-            formVersion: number;
-            title?: string;
-            description?: string;
-            /**
-             * @description Values by field key: a string for text fields and one of the options for SELECT.
-             *     If `formVersion` is older than the current form, the server validates against the
-             *     current form; unknown keys are dropped and a missing required field returns
-             *     `422 FIELDS_CHANGED`, so the app can refetch the config.
-             */
-            fields?: {
-                [key: string]: string;
-            };
-            context?: components["schemas"]["ReportContext"];
-            reporter?: components["schemas"]["Reporter"];
-            attachments?: {
-                fileName: string;
-                /** @enum {string} */
-                contentType: "image/png" | "image/jpeg" | "image/webp" | "image/gif" | "application/pdf" | "text/plain";
-                size: number;
-            }[];
-        };
-        /** @description Facts the SDK fills in. All optional. Never include URL query strings or personal data. */
-        ReportContext: {
-            /** @enum {string} */
-            platform?: "web" | "ios" | "android" | "flutter" | "react-native";
-            appVersion?: string;
-            build?: string;
-            osName?: string;
-            osVersion?: string;
-            deviceModel?: string;
-            locale?: string;
-            /** @description Screen or route name, without query string. */
-            screen?: string;
-            /** @description App-defined key/value context, shown on the ticket as is. */
-            extra?: {
-                [key: string]: string;
-            };
-        };
-        /** @description Optional and unverified. ToDoddle never emails this address. */
-        Reporter: {
-            name?: string;
-            /** Format: email */
-            email?: string;
-            /** @description The app's own user or account ID. */
-            customerReference?: string;
-        };
-        ReportResponse: {
-            /** @description Opaque; safe to show as a reference. */
-            reportId: string;
-            /** @enum {string} */
-            status: "received" | "awaiting_uploads";
-            /** @description Only with `awaiting_uploads`. Send it to `submit`. Keep it private to this report. */
-            submitToken?: string;
-            /**
-             * Format: date-time
-             * @description Only with `awaiting_uploads`.
-             */
-            expiresAt?: string;
-            /** @description Only with `awaiting_uploads`, in the same order as the declared attachments. */
-            uploads?: {
-                /** Format: uri */
-                uploadUrl: string;
-                headers: {
-                    [key: string]: string;
-                };
-                /** Format: date-time */
-                expiresAt: string;
-            }[];
-        };
-        HexColor: string;
+        corners: 'rounded' | 'square';
+        /** @description A font id from the portal list. SDKs may ignore it and use the app font. */
+        headingFont?: string;
+      };
     };
-    responses: {
-        /** @description Malformed JSON, an unknown property or a value of the wrong type. */
-        BadRequest: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description Missing, unknown or revoked key, or an origin or app ID the key does not allow. */
-        InvalidKey: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description The Support module is off, external intake is paused, or the subscription plan has no Support module. */
-        Unavailable: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description No such report for this key. */
-        NotFound: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description Idempotency key reused with a different body, or attachments still uploading. */
-        Conflict: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description The report was not submitted in time and has been discarded. Start again. */
-        Expired: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description The body, a field or a declared attachment is over its limit. */
-        TooLarge: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description One or more fields failed validation. `fields` maps each field key to a message the app can show. */
-        InvalidFields: {
-            headers: {
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
-        /** @description Too many requests. Wait for `Retry-After` seconds, then retry with the same idempotency key. */
-        RateLimited: {
-            headers: {
-                "Retry-After"?: number;
-                [name: string]: unknown;
-            };
-            content: {
-                "application/json": components["schemas"]["Error"];
-            };
-        };
+    FieldDefinition: {
+      /** @description Stable; never reused for a different meaning. */
+      key: string;
+      label: string;
+      /** @enum {string} */
+      type: 'SHORT_TEXT' | 'LONG_TEXT' | 'SELECT';
+      required: boolean;
+      /** @description For SELECT only. */
+      options?: string[];
+      /** @description 300 for SHORT_TEXT, 5000 for LONG_TEXT. */
+      maxLength?: number;
     };
+    /** @enum {string} */
+    ReportType: 'problem' | 'feedback' | 'question';
+    ReportRequest: {
+      /** @description Generate once per report (for example a UUID without dashes) and reuse it on every retry. */
+      idempotencyKey: string;
+      type: components['schemas']['ReportType'];
+      formVersion: number;
+      title?: string;
+      description?: string;
+      /**
+       * @description Values by field key: a string for text fields and one of the options for SELECT.
+       *     If `formVersion` is older than the current form, the server validates against the
+       *     current form; unknown keys are dropped and a missing required field returns
+       *     `422 FIELDS_CHANGED`, so the app can refetch the config.
+       */
+      fields?: {
+        [key: string]: string;
+      };
+      context?: components['schemas']['ReportContext'];
+      reporter?: components['schemas']['Reporter'];
+      attachments?: {
+        fileName: string;
+        /** @enum {string} */
+        contentType: 'image/png' | 'image/jpeg' | 'image/webp' | 'image/gif' | 'application/pdf' | 'text/plain';
+        size: number;
+      }[];
+    };
+    /** @description Facts the SDK fills in. All optional. Never include URL query strings or personal data. */
+    ReportContext: {
+      /** @enum {string} */
+      platform?: 'web' | 'ios' | 'android' | 'flutter' | 'react-native';
+      appVersion?: string;
+      build?: string;
+      osName?: string;
+      osVersion?: string;
+      deviceModel?: string;
+      locale?: string;
+      /** @description Screen or route name, without query string. */
+      screen?: string;
+      /** @description App-defined key/value context, shown on the ticket as is. */
+      extra?: {
+        [key: string]: string;
+      };
+    };
+    /** @description Optional and unverified. ToDoddle never emails this address. */
+    Reporter: {
+      name?: string;
+      /** Format: email */
+      email?: string;
+      /** @description The app's own user or account ID. */
+      customerReference?: string;
+    };
+    ReportResponse: {
+      /** @description Opaque; safe to show as a reference. */
+      reportId: string;
+      /** @enum {string} */
+      status: 'received' | 'awaiting_uploads';
+      /** @description Only with `awaiting_uploads`. Send it to `submit`. Keep it private to this report. */
+      submitToken?: string;
+      /**
+       * Format: date-time
+       * @description Only with `awaiting_uploads`.
+       */
+      expiresAt?: string;
+      /** @description Only with `awaiting_uploads`, in the same order as the declared attachments. */
+      uploads?: {
+        /** Format: uri */
+        uploadUrl: string;
+        headers: {
+          [key: string]: string;
+        };
+        /** Format: date-time */
+        expiresAt: string;
+      }[];
+    };
+    HexColor: string;
+  };
+  responses: {
+    /** @description Malformed JSON, an unknown property or a value of the wrong type. */
+    BadRequest: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+    /** @description Missing, unknown or revoked key, or an origin or app ID the key does not allow. */
+    InvalidKey: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+    /** @description The Support module is off, external intake is paused, or the subscription plan has no Support module. */
+    Unavailable: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+    /** @description No such report for this key. */
+    NotFound: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+    /** @description Idempotency key reused with a different body, or attachments still uploading. */
+    Conflict: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+    /** @description The report was not submitted in time and has been discarded. Start again. */
+    Expired: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+    /** @description The body, a field or a declared attachment is over its limit. */
+    TooLarge: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+    /** @description One or more fields failed validation. `fields` maps each field key to a message the app can show. */
+    InvalidFields: {
+      headers: {
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+    /** @description Too many requests. Wait for `Retry-After` seconds, then retry with the same idempotency key. */
+    RateLimited: {
+      headers: {
+        'Retry-After'?: number;
+        [name: string]: unknown;
+      };
+      content: {
+        'application/json': components['schemas']['Error'];
+      };
+    };
+  };
+  parameters: {
+    /**
+     * @description The iOS bundle ID or Android package name. If the key lists allowed app IDs, other values
+     *     are refused. This is a filter against mistakes, not proof of identity. Browsers send no
+     *     app ID; their `Origin` is checked against the key's allowed origins instead.
+     */
+    AppId: string;
+    /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
+    SdkVersion: string;
+  };
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
+}
+export type $defs = Record<string, never>;
+export interface operations {
+  getConfig: {
     parameters: {
+      query?: never;
+      header?: {
         /**
          * @description The iOS bundle ID or Android package name. If the key lists allowed app IDs, other values
          *     are refused. This is a filter against mistakes, not proof of identity. Browsers send no
          *     app ID; their `Origin` is checked against the key's allowed origins instead.
          */
-        AppId: string;
+        'X-Tododdle-App-Id'?: components['parameters']['AppId'];
         /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
-        SdkVersion: string;
+        'X-Tododdle-Sdk'?: components['parameters']['SdkVersion'];
+        'If-None-Match'?: string;
+      };
+      path?: never;
+      cookie?: never;
     };
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
-}
-export type $defs = Record<string, never>;
-export interface operations {
-    getConfig: {
-        parameters: {
-            query?: never;
-            header?: {
-                /**
-                 * @description The iOS bundle ID or Android package name. If the key lists allowed app IDs, other values
-                 *     are refused. This is a filter against mistakes, not proof of identity. Browsers send no
-                 *     app ID; their `Origin` is checked against the key's allowed origins instead.
-                 */
-                "X-Tododdle-App-Id"?: components["parameters"]["AppId"];
-                /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
-                "X-Tododdle-Sdk"?: components["parameters"]["SdkVersion"];
-                "If-None-Match"?: string;
-            };
-            path?: never;
-            cookie?: never;
+    requestBody?: never;
+    responses: {
+      /** @description The current config. */
+      200: {
+        headers: {
+          ETag?: string;
+          /** @description For example `public, max-age=300`. */
+          'Cache-Control'?: string;
+          [name: string]: unknown;
         };
-        requestBody?: never;
-        responses: {
-            /** @description The current config. */
-            200: {
-                headers: {
-                    ETag?: string;
-                    /** @description For example `public, max-age=300`. */
-                    "Cache-Control"?: string;
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Config"];
-                };
-            };
-            /** @description The cached config is still current. */
-            304: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            401: components["responses"]["InvalidKey"];
-            403: components["responses"]["Unavailable"];
-            429: components["responses"]["RateLimited"];
+        content: {
+          'application/json': components['schemas']['Config'];
         };
+      };
+      /** @description The cached config is still current. */
+      304: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
+      };
+      401: components['responses']['InvalidKey'];
+      403: components['responses']['Unavailable'];
+      429: components['responses']['RateLimited'];
     };
-    createReport: {
-        parameters: {
-            query?: never;
-            header?: {
-                /**
-                 * @description The iOS bundle ID or Android package name. If the key lists allowed app IDs, other values
-                 *     are refused. This is a filter against mistakes, not proof of identity. Browsers send no
-                 *     app ID; their `Origin` is checked against the key's allowed origins instead.
-                 */
-                "X-Tododdle-App-Id"?: components["parameters"]["AppId"];
-                /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
-                "X-Tododdle-Sdk"?: components["parameters"]["SdkVersion"];
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ReportRequest"];
-            };
-        };
-        responses: {
-            /** @description The same idempotency key was already used; this is the first result. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportResponse"];
-                };
-            };
-            /** @description Report received, or waiting for uploads. */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportResponse"];
-                };
-            };
-            400: components["responses"]["BadRequest"];
-            401: components["responses"]["InvalidKey"];
-            403: components["responses"]["Unavailable"];
-            409: components["responses"]["Conflict"];
-            413: components["responses"]["TooLarge"];
-            422: components["responses"]["InvalidFields"];
-            429: components["responses"]["RateLimited"];
-        };
+  };
+  createReport: {
+    parameters: {
+      query?: never;
+      header?: {
+        /**
+         * @description The iOS bundle ID or Android package name. If the key lists allowed app IDs, other values
+         *     are refused. This is a filter against mistakes, not proof of identity. Browsers send no
+         *     app ID; their `Origin` is checked against the key's allowed origins instead.
+         */
+        'X-Tododdle-App-Id'?: components['parameters']['AppId'];
+        /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
+        'X-Tododdle-Sdk'?: components['parameters']['SdkVersion'];
+      };
+      path?: never;
+      cookie?: never;
     };
-    submitReport: {
-        parameters: {
-            query?: never;
-            header?: {
-                /**
-                 * @description The iOS bundle ID or Android package name. If the key lists allowed app IDs, other values
-                 *     are refused. This is a filter against mistakes, not proof of identity. Browsers send no
-                 *     app ID; their `Origin` is checked against the key's allowed origins instead.
-                 */
-                "X-Tododdle-App-Id"?: components["parameters"]["AppId"];
-                /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
-                "X-Tododdle-Sdk"?: components["parameters"]["SdkVersion"];
-            };
-            path: {
-                reportId: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": {
-                    submitToken: string;
-                };
-            };
-        };
-        responses: {
-            /** @description Report received. */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ReportResponse"];
-                };
-            };
-            401: components["responses"]["InvalidKey"];
-            403: components["responses"]["Unavailable"];
-            404: components["responses"]["NotFound"];
-            409: components["responses"]["Conflict"];
-            410: components["responses"]["Expired"];
-            429: components["responses"]["RateLimited"];
-        };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['ReportRequest'];
+      };
     };
+    responses: {
+      /** @description The same idempotency key was already used; this is the first result. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReportResponse'];
+        };
+      };
+      /** @description Report received, or waiting for uploads. */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReportResponse'];
+        };
+      };
+      400: components['responses']['BadRequest'];
+      401: components['responses']['InvalidKey'];
+      403: components['responses']['Unavailable'];
+      409: components['responses']['Conflict'];
+      413: components['responses']['TooLarge'];
+      422: components['responses']['InvalidFields'];
+      429: components['responses']['RateLimited'];
+    };
+  };
+  submitReport: {
+    parameters: {
+      query?: never;
+      header?: {
+        /**
+         * @description The iOS bundle ID or Android package name. If the key lists allowed app IDs, other values
+         *     are refused. This is a filter against mistakes, not proof of identity. Browsers send no
+         *     app ID; their `Origin` is checked against the key's allowed origins instead.
+         */
+        'X-Tododdle-App-Id'?: components['parameters']['AppId'];
+        /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
+        'X-Tododdle-Sdk'?: components['parameters']['SdkVersion'];
+      };
+      path: {
+        reportId: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': {
+          submitToken: string;
+        };
+      };
+    };
+    responses: {
+      /** @description Report received. */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ReportResponse'];
+        };
+      };
+      401: components['responses']['InvalidKey'];
+      403: components['responses']['Unavailable'];
+      404: components['responses']['NotFound'];
+      409: components['responses']['Conflict'];
+      410: components['responses']['Expired'];
+      429: components['responses']['RateLimited'];
+    };
+  };
 }
