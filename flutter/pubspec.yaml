@@ -1,0 +1,22 @@
+name: tododdle_support
+description: One-way in-app issue reporting into a ToDoddle Support project, with a headless client and a Material report sheet.
+version: 1.0.0-dev
+homepage: https://github.com/krffl/tododdle-support
+repository: https://github.com/krffl/tododdle-support/tree/main/flutter
+publish_to: none
+
+environment:
+  sdk: ^3.9.0
+  flutter: ">=3.35.0"
+
+dependencies:
+  device_info_plus: ^12.4.0
+  flutter:
+    sdk: flutter
+  http: ^1.6.0
+  package_info_plus: ^9.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
