@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.build/
+.swiftpm/
+*.xcodeproj/xcuserdata/
+.gradle/
+build/
+local.properties
+.dart_tool/
+.flutter-plugins*
+pubspec.lock
+.DS_Store

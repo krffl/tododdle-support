@@ -1,0 +1,156 @@
+{
+  "$comment": "Shared conformance cases. Every SDK runs all of them against a local mock server that replays `exchanges` in order, then checks `expect`. A request is matched by method and path; `request.must` lists what the SDK has to send. `{{baseUrl}}` is the mock server's origin.",
+  "key": "tdsk_pub_TESTKEY0000000000000000000000000",
+  "config": {
+    "project": { "name": "Mosslight", "logoUrl": null },
+    "form": {
+      "version": 3,
+      "types": [
+        { "value": "problem", "label": "Report a problem" },
+        { "value": "feedback", "label": "Share feedback" },
+        { "value": "question", "label": "Ask a question" }
+      ],
+      "title": { "enabled": true, "required": false, "label": "Summary", "maxLength": 160 },
+      "description": { "required": true, "label": "What happened?", "placeholder": "Tell us what you expected and what you saw.", "maxLength": 10000 },
+      "fields": [
+        { "key": "area", "label": "Where in the app?", "type": "SELECT", "required": true, "options": ["Home", "Settings", "Other"] },
+        { "key": "steps", "label": "Steps to reproduce", "type": "LONG_TEXT", "required": false, "maxLength": 5000 }
+      ],
+      "attachments": { "enabled": true, "maxCount": 5, "maxBytes": 10485760, "contentTypes": ["image/png", "image/jpeg", "image/webp", "image/gif", "application/pdf", "text/plain"] }
+    },
+    "wording": {
+      "dialogTitle": "Tell us what happened",
+      "intro": "Your report goes straight to the Mosslight team.",
+      "submitLabel": "Send report",
+      "thankYouTitle": "Thanks!",
+      "thankYouMessage": "We read every report."
+    },
+    "theme": { "accent": "#2f6d4f", "onAccent": "#ffffff", "corners": "rounded", "headingFont": "baloo" }
+  },
+  "report": {
+    "type": "problem",
+    "description": "Favourites vanish after reopening the app.",
+    "fields": { "area": "Home" },
+    "context": { "appVersion": "2.4.0", "build": "118", "screen": "Favourites" },
+    "reporter": { "name": "Alex", "customerReference": "user-42" }
+  },
+  "cases": [
+    {
+      "name": "config_ok",
+      "operation": "getConfig",
+      "exchanges": [
+        { "request": { "method": "GET", "path": "/config", "must": { "headers": ["X-Tododdle-Key", "X-Tododdle-Sdk"] } },
+          "response": { "status": 200, "headers": { "ETag": "\"cfg-3\"" }, "body": "$config" } }
+      ],
+      "expect": { "ok": true, "formVersion": 3, "fieldKeys": ["area", "steps"] }
+    },
+    {
+      "name": "config_not_modified_uses_cache",
+      "operation": "getConfigTwice",
+      "exchanges": [
+        { "request": { "method": "GET", "path": "/config" }, "response": { "status": 200, "headers": { "ETag": "\"cfg-3\"" }, "body": "$config" } },
+        { "request": { "method": "GET", "path": "/config", "must": { "headers": { "If-None-Match": "\"cfg-3\"" } } }, "response": { "status": 304 } }
+      ],
+      "expect": { "ok": true, "formVersion": 3 }
+    },
+    {
+      "name": "report_received",
+      "operation": "report",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports", "must": { "headers": ["X-Tododdle-Key", "X-Tododdle-Sdk", "Content-Type"], "body": ["idempotencyKey", "type", "formVersion", "description", "fields.area", "context.appVersion"] } },
+          "response": { "status": 201, "body": { "reportId": "rpt_AAAAAAAAAAAAAAAA0001", "status": "received" } } }
+      ],
+      "expect": { "ok": true, "reportId": "rpt_AAAAAAAAAAAAAAAA0001" }
+    },
+    {
+      "name": "report_with_attachment",
+      "operation": "reportWithAttachment",
+      "attachment": { "fileName": "screenshot.png", "contentType": "image/png", "bytesBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" },
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports", "must": { "body": ["attachments.0.fileName", "attachments.0.contentType", "attachments.0.size"] } },
+          "response": { "status": 201, "body": { "reportId": "rpt_AAAAAAAAAAAAAAAA0002", "status": "awaiting_uploads", "submitToken": "st_0123456789abcdef0123456789abcdef", "expiresAt": "2099-01-01T00:00:00Z", "uploads": [ { "uploadUrl": "{{baseUrl}}/upload/1", "headers": { "Content-Type": "image/png" }, "expiresAt": "2099-01-01T00:00:00Z" } ] } } },
+        { "request": { "method": "PUT", "path": "/upload/1", "must": { "headers": { "Content-Type": "image/png" }, "rawBodyBase64": "$attachment" } },
+          "response": { "status": 200 } },
+        { "request": { "method": "POST", "path": "/reports/rpt_AAAAAAAAAAAAAAAA0002/submit", "must": { "body": { "submitToken": "st_0123456789abcdef0123456789abcdef" } } },
+          "response": { "status": 200, "body": { "reportId": "rpt_AAAAAAAAAAAAAAAA0002", "status": "received" } } }
+      ],
+      "expect": { "ok": true, "reportId": "rpt_AAAAAAAAAAAAAAAA0002" }
+    },
+    {
+      "name": "invalid_fields",
+      "operation": "report",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports" },
+          "response": { "status": 422, "body": { "error": { "code": "INVALID_FIELDS", "message": "Check the highlighted fields.", "fields": { "area": "Choose where in the app." } } } } }
+      ],
+      "expect": { "ok": false, "errorCode": "INVALID_FIELDS", "fieldErrors": { "area": "Choose where in the app." }, "requests": 1 }
+    },
+    {
+      "name": "rate_limited_then_received_with_same_key",
+      "operation": "report",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports" },
+          "response": { "status": 429, "headers": { "Retry-After": "1" }, "body": { "error": { "code": "RATE_LIMITED", "message": "Too many reports." } } } },
+        { "request": { "method": "POST", "path": "/reports", "must": { "sameIdempotencyKeyAsPrevious": true } },
+          "response": { "status": 201, "body": { "reportId": "rpt_AAAAAAAAAAAAAAAA0003", "status": "received" } } }
+      ],
+      "expect": { "ok": true, "reportId": "rpt_AAAAAAAAAAAAAAAA0003", "minDelayMs": 900 }
+    },
+    {
+      "name": "server_error_then_received",
+      "operation": "report",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports" }, "response": { "status": 503 } },
+        { "request": { "method": "POST", "path": "/reports", "must": { "sameIdempotencyKeyAsPrevious": true } },
+          "response": { "status": 201, "body": { "reportId": "rpt_AAAAAAAAAAAAAAAA0004", "status": "received" } } }
+      ],
+      "expect": { "ok": true, "reportId": "rpt_AAAAAAAAAAAAAAAA0004" }
+    },
+    {
+      "name": "revoked_key_is_not_retried",
+      "operation": "report",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports" },
+          "response": { "status": 401, "body": { "error": { "code": "KEY_REVOKED", "message": "This key was revoked." } } } }
+      ],
+      "expect": { "ok": false, "errorCode": "KEY_REVOKED", "requests": 1 }
+    },
+    {
+      "name": "support_unavailable_is_not_retried",
+      "operation": "report",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports" },
+          "response": { "status": 403, "body": { "error": { "code": "SUPPORT_UNAVAILABLE", "message": "Support is not available." } } } }
+      ],
+      "expect": { "ok": false, "errorCode": "SUPPORT_UNAVAILABLE", "requests": 1 }
+    },
+    {
+      "name": "expired_report",
+      "operation": "reportWithAttachment",
+      "attachment": { "fileName": "note.txt", "contentType": "text/plain", "bytesBase64": "aGVsbG8=" },
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports" },
+          "response": { "status": 201, "body": { "reportId": "rpt_AAAAAAAAAAAAAAAA0005", "status": "awaiting_uploads", "submitToken": "st_0123456789abcdef0123456789abcdef", "expiresAt": "2099-01-01T00:00:00Z", "uploads": [ { "uploadUrl": "{{baseUrl}}/upload/5", "headers": { "Content-Type": "text/plain" }, "expiresAt": "2099-01-01T00:00:00Z" } ] } } },
+        { "request": { "method": "PUT", "path": "/upload/5" }, "response": { "status": 200 } },
+        { "request": { "method": "POST", "path": "/reports/rpt_AAAAAAAAAAAAAAAA0005/submit" },
+          "response": { "status": 410, "body": { "error": { "code": "REPORT_EXPIRED", "message": "Start again." } } } }
+      ],
+      "expect": { "ok": false, "errorCode": "REPORT_EXPIRED" }
+    },
+    {
+      "name": "unknown_error_code_falls_back_to_status",
+      "operation": "report",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports" },
+          "response": { "status": 400, "body": { "error": { "code": "SOMETHING_NEW", "message": "New code." } } } }
+      ],
+      "expect": { "ok": false, "errorCode": "SOMETHING_NEW", "httpStatus": 400, "requests": 1 }
+    }
+  ],
+  "retryPolicy": {
+    "$comment": "All SDKs follow this. Retry only 429, 408, 5xx and network errors. Honour Retry-After (seconds). Otherwise back off 1s, 2s, 4s. At most 3 attempts in total for one call. Never retry 400, 401, 403, 404, 409, 410, 413 or 422. Always reuse the same idempotencyKey.",
+    "maxAttempts": 3,
+    "backoffSeconds": [1, 2, 4],
+    "retryStatuses": [408, 429, 500, 502, 503, 504]
+  }
+}
