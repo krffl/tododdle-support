@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM"],
+    "jsx": "react-jsx",
+    "types": ["node"],
+    "paths": { "react-native": ["./test/react-native-mock.tsx"] }
+  },
+  "include": ["test", "tsup.config.ts", "vitest.config.ts"]
+}
