@@ -314,7 +314,7 @@ export interface components {
                 "application/json": components["schemas"]["Error"];
             };
         };
-        /** @description Too many requests. Wait for `Retry-After` seconds, then retry with the same idempotency key. */
+        /** @description Too many requests. Wait for `Retry-After` seconds, then retry with the same idempotency key. SDKs wait at most 60 seconds inside one call; a longer wait fails the call with `RATE_LIMITED` and `retryAfterSeconds`. */
         RateLimited: {
             headers: {
                 "Retry-After"?: number;
