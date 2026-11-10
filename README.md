@@ -17,6 +17,7 @@ Every platform is released together from one `v<version>` tag:
 | `swift` | `TododdleSupport` | Swift Package Manager: this repository URL, from `1.0.0` |
 | `kotlin` | `com.github.krffl.tododdle-support:support` (+ `support-compose`, `support-offline`) | JitPack: `implementation("com.github.krffl.tododdle-support:support-compose:v1.0.0")` |
 | `flutter` | `tododdle_support` | git dependency with `path: flutter` and `ref: v1.0.0` |
+| `godot` | `addons/tododdle_support` (Godot 4 addon: client plus a report dialog) | copy `godot/addons/tododdle_support` from the `v1.0.0` tag into your game's `addons/` |
 
 Each folder's README has the full setup and an example app.
 
@@ -43,12 +44,14 @@ npm run typecheck
 ## Releasing
 
 1. Change `/VERSION`, then run `npm run sync-version`. It updates the npm packages, the Swift
-   `SDKVersion.swift` and the Flutter `pubspec.yaml` and `version.dart`. Kotlin reads `/VERSION`
-   when it builds. CI and each platform's tests fail if a copy is out of date.
+   `SDKVersion.swift`, the Flutter `pubspec.yaml` and `version.dart`, and the Godot `plugin.cfg`
+   and `SDK_VERSION`. Kotlin reads `/VERSION` when it builds. CI and each platform's tests fail if
+   a copy is out of date.
 2. If you change `contract/cases/cases.json`, run `scripts/sync-swift-cases.sh` (Swift bundles a copy).
 3. Commit, then publish a GitHub release tagged `v<VERSION>`. The publish workflow puts both npm
-   packages on npm. Swift and Flutter use the tag directly, and JitPack builds Kotlin from it on the
-   first request.
+   packages on npm. Swift, Flutter and Godot use the tag directly, and JitPack builds Kotlin from it
+   on the first request.
 
 Each platform has its own quality workflow (`quality.yml` for JS, plus `quality-swift.yml`,
-`quality-kotlin.yml` and `quality-flutter.yml`). All of them run the shared conformance cases.
+`quality-kotlin.yml`, `quality-flutter.yml` and `quality-godot.yml`). All of them run the shared
+conformance cases.
