@@ -1,0 +1,221 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://addons/tododdle_support/ui/report_dialog.gd" id="1_dialog"]
+
+[node name="TododdleSupportDialog" type="CanvasLayer"]
+layer = 100
+script = ExtResource("1_dialog")
+
+[node name="Root" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.6)
+
+[node name="Center" type="CenterContainer" parent="Root"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="Panel" type="PanelContainer" parent="Root/Center"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(560, 0)
+
+[node name="Margin" type="MarginContainer" parent="Root/Center/Panel"]
+layout_mode = 2
+theme_override_constants/margin_left = 20
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 20
+theme_override_constants/margin_bottom = 16
+
+[node name="Layout" type="VBoxContainer" parent="Root/Center/Panel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 10
+
+[node name="Header" type="HBoxContainer" parent="Root/Center/Panel/Margin/Layout"]
+layout_mode = 2
+
+[node name="Heading" type="Label" parent="Root/Center/Panel/Margin/Layout/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
+autowrap_mode = 3
+
+[node name="CloseButton" type="Button" parent="Root/Center/Panel/Margin/Layout/Header"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Close"
+
+[node name="Intro" type="Label" parent="Root/Center/Panel/Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="Loading" type="Label" parent="Root/Center/Panel/Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Loading…"
+horizontal_alignment = 1
+
+[node name="LoadError" type="VBoxContainer" parent="Root/Center/Panel/Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+
+[node name="LoadErrorMessage" type="Label" parent="Root/Center/Panel/Margin/Layout/LoadError"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="RetryButton" type="Button" parent="Root/Center/Panel/Margin/Layout/LoadError"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+text = "Try again"
+
+[node name="Form" type="ScrollContainer" parent="Root/Center/Panel/Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+custom_minimum_size = Vector2(0, 360)
+horizontal_scroll_mode = 0
+
+[node name="Fields" type="VBoxContainer" parent="Root/Center/Panel/Margin/Layout/Form"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 6
+
+[node name="TypeLabel" type="Label" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Type"
+
+[node name="TypePicker" type="OptionButton" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="TypeError" type="Label" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+theme_override_colors/font_color = Color(0.9, 0.35, 0.35, 1)
+autowrap_mode = 3
+
+[node name="TitleLabel" type="Label" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Title"
+
+[node name="TitleEdit" type="LineEdit" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="TitleError" type="Label" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+theme_override_colors/font_color = Color(0.9, 0.35, 0.35, 1)
+autowrap_mode = 3
+
+[node name="DescriptionLabel" type="Label" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Description"
+
+[node name="DescriptionEdit" type="TextEdit" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+custom_minimum_size = Vector2(0, 120)
+wrap_mode = 1
+
+[node name="DescriptionError" type="Label" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+theme_override_colors/font_color = Color(0.9, 0.35, 0.35, 1)
+autowrap_mode = 3
+
+[node name="CustomFields" type="VBoxContainer" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="AttachmentsLabel" type="Label" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "Attach"
+
+[node name="AttachmentList" type="VBoxContainer" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+
+[node name="AttachmentsError" type="Label" parent="Root/Center/Panel/Margin/Layout/Form/Fields"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+theme_override_colors/font_color = Color(0.9, 0.35, 0.35, 1)
+autowrap_mode = 3
+
+[node name="FormError" type="Label" parent="Root/Center/Panel/Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+theme_override_colors/font_color = Color(0.9, 0.35, 0.35, 1)
+autowrap_mode = 3
+
+[node name="Actions" type="HBoxContainer" parent="Root/Center/Panel/Margin/Layout"]
+layout_mode = 2
+
+[node name="Status" type="Label" parent="Root/Center/Panel/Margin/Layout/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+vertical_alignment = 1
+
+[node name="SubmitButton" type="Button" parent="Root/Center/Panel/Margin/Layout/Actions"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+text = "Send"
+
+[node name="ThankYou" type="VBoxContainer" parent="Root/Center/Panel/Margin/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+visible = false
+theme_override_constants/separation = 10
+
+[node name="ThankYouTitle" type="Label" parent="Root/Center/Panel/Margin/Layout/ThankYou"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+autowrap_mode = 3
+
+[node name="ThankYouMessage" type="Label" parent="Root/Center/Panel/Margin/Layout/ThankYou"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+
+[node name="DoneButton" type="Button" parent="Root/Center/Panel/Margin/Layout/ThankYou"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 8
+text = "Close"
