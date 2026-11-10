@@ -194,7 +194,7 @@ export interface components {
         /** @description Facts the SDK fills in. All optional. Never include URL query strings or personal data. */
         ReportContext: {
             /** @enum {string} */
-            platform?: "web" | "ios" | "android" | "flutter" | "react-native";
+            platform?: "web" | "ios" | "android" | "flutter" | "react-native" | "godot";
             appVersion?: string;
             build?: string;
             osName?: string;
@@ -332,7 +332,7 @@ export interface components {
          *     app ID; their `Origin` is checked against the key's allowed origins instead.
          */
         AppId: string;
-        /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
+        /** @description SDK name and version, for example `swift/1.0.0`, `flutter/1.2.0` or `godot/1.0.0`. */
         SdkVersion: string;
     };
     requestBodies: never;
@@ -351,7 +351,7 @@ export interface operations {
                  *     app ID; their `Origin` is checked against the key's allowed origins instead.
                  */
                 "X-Tododdle-App-Id"?: components["parameters"]["AppId"];
-                /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
+                /** @description SDK name and version, for example `swift/1.0.0`, `flutter/1.2.0` or `godot/1.0.0`. */
                 "X-Tododdle-Sdk"?: components["parameters"]["SdkVersion"];
                 "If-None-Match"?: string;
             };
@@ -394,7 +394,7 @@ export interface operations {
                  *     app ID; their `Origin` is checked against the key's allowed origins instead.
                  */
                 "X-Tododdle-App-Id"?: components["parameters"]["AppId"];
-                /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
+                /** @description SDK name and version, for example `swift/1.0.0`, `flutter/1.2.0` or `godot/1.0.0`. */
                 "X-Tododdle-Sdk"?: components["parameters"]["SdkVersion"];
             };
             path?: never;
@@ -443,7 +443,7 @@ export interface operations {
                  *     app ID; their `Origin` is checked against the key's allowed origins instead.
                  */
                 "X-Tododdle-App-Id"?: components["parameters"]["AppId"];
-                /** @description SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`. */
+                /** @description SDK name and version, for example `swift/1.0.0`, `flutter/1.2.0` or `godot/1.0.0`. */
                 "X-Tododdle-Sdk"?: components["parameters"]["SdkVersion"];
             };
             path: {

@@ -7,7 +7,7 @@ info:
     name: Proprietary
     url: https://tododdle.com/terms
   description: |
-    Every ToDoddle Support SDK (JavaScript, React Native, Swift, Kotlin and Flutter) follows this contract.
+    Every ToDoddle Support SDK (JavaScript, React Native, Swift, Kotlin, Flutter and Godot) follows this contract.
 
     - Reports go one way. A report becomes a Support ticket in the project's intake lane.
       The reporter gets no email, no sign-in link and no replies.
@@ -166,7 +166,7 @@ components:
       name: X-Tododdle-Sdk
       in: header
       required: false
-      description: SDK name and version, for example `swift/1.0.0` or `flutter/1.2.0`.
+      description: SDK name and version, for example `swift/1.0.0`, `flutter/1.2.0` or `godot/1.0.0`.
       schema: { type: string, maxLength: 60, pattern: '^[a-z-]+/[0-9A-Za-z.+-]+$' }
   responses:
     BadRequest:
@@ -365,7 +365,7 @@ components:
       additionalProperties: false
       description: Facts the SDK fills in. All optional. Never include URL query strings or personal data.
       properties:
-        platform: { type: string, enum: [web, ios, android, flutter, react-native] }
+        platform: { type: string, enum: [web, ios, android, flutter, react-native, godot] }
         appVersion: { type: string, maxLength: 50 }
         build: { type: string, maxLength: 50 }
         osName: { type: string, maxLength: 50 }
