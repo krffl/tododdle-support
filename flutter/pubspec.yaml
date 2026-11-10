@@ -1,6 +1,6 @@
 name: tododdle_support
 description: One-way in-app issue reporting into a ToDoddle Support project, with a headless client and a Material report sheet.
-version: 1.0.0-dev
+version: 1.0.0
 homepage: https://github.com/krffl/tododdle-support
 repository: https://github.com/krffl/tododdle-support/tree/main/flutter
 publish_to: none
