@@ -1,0 +1,67 @@
+name: Quality (Godot)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'godot/**'
+      - 'contract/**'
+      - 'VERSION'
+      - 'scripts/sync-version.mjs'
+      - '.github/workflows/quality-godot.yml'
+  pull_request:
+    paths:
+      - 'godot/**'
+      - 'contract/**'
+      - 'VERSION'
+      - 'scripts/sync-version.mjs'
+      - '.github/workflows/quality-godot.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-godot-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  godot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # Pinned Godot build. The SHA-512 comes from the release's SHA512-SUMS.txt.
+      GODOT_RELEASE: 4.7.2-stable
+      GODOT_ZIP: Godot_v4.7.2-stable_linux.x86_64.zip
+      GODOT_BINARY: Godot_v4.7.2-stable_linux.x86_64
+      GODOT_SHA512: 9aa00f7a605200940bce3027a567b782f49bd8e940dd06ae9e987bd65aee1b1467edd56ed84fcdcbdd44354bf613bdbb4e5d2913e925850368e150c59ed54c65
+    steps:
+      - name: Check out
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+      - name: Set up Node.js (mock server)
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+
+      - name: Check the version copies
+        run: node scripts/sync-version.mjs --check
+
+      - name: Download and verify Godot
+        run: |
+          set -euo pipefail
+          base="https://github.com/godotengine/godot-builds/releases/download/${GODOT_RELEASE}"
+          dir="$RUNNER_TEMP/godot"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/SHA512-SUMS.txt" "$base/SHA512-SUMS.txt"
+          curl -fsSL --retry 3 -o "$dir/$GODOT_ZIP" "$base/$GODOT_ZIP"
+          # The pinned hash must match the official SUMS file, and the download must match both.
+          grep -qx "${GODOT_SHA512}  ${GODOT_ZIP}" "$dir/SHA512-SUMS.txt"
+          (cd "$dir" && echo "${GODOT_SHA512}  ${GODOT_ZIP}" | sha512sum --check --strict)
+          unzip -q "$dir/$GODOT_ZIP" -d "$dir"
+          chmod +x "$dir/$GODOT_BINARY"
+          echo "GODOT=$dir/$GODOT_BINARY" >> "$GITHUB_ENV"
+          "$dir/$GODOT_BINARY" --headless --version
+
+      - name: Test (shared conformance cases, client, dialog)
+        run: godot/run-tests.sh

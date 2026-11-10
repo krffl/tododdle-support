@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Copies the repository version from /VERSION into every SDK: npm packages, Swift, Flutter.
+// Copies the repository version from /VERSION into every SDK: npm packages, Swift, Flutter, Godot.
 // Kotlin reads /VERSION at build time.
 // Run `node scripts/sync-version.mjs` after changing /VERSION, or `--check` to verify in CI.
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -45,6 +45,12 @@ update('flutter/pubspec.yaml', (text) => text.replace(/^version: .*$/m, `version
 
 update('flutter/lib/src/version.dart', (text) =>
   text.replace(/(const String tododdleSupportSdkVersion = ')[^']*(')/, `$1${version}$2`),
+);
+
+update('godot/addons/tododdle_support/plugin.cfg', (text) => text.replace(/^version=".*"$/m, `version="${version}"`));
+
+update('godot/addons/tododdle_support/tododdle_support.gd', (text) =>
+  text.replace(/^(const SDK_VERSION := ")[^"]*(")/m, `$1${version}$2`),
 );
 
 if (problems.length > 0) {
