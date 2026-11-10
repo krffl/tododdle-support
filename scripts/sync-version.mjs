@@ -53,6 +53,12 @@ update('godot/addons/tododdle_support/tododdle_support.gd', (text) =>
   text.replace(/^(const SDK_VERSION := ")[^"]*(")/m, `$1${version}$2`),
 );
 
+// Each package ships its own copy of the root LICENSE (npm, pub and a copied Godot addon folder).
+const license = readFileSync(join(root, 'LICENSE'), 'utf8');
+for (const copy of ['packages/js/LICENSE', 'packages/react-native/LICENSE', 'flutter/LICENSE', 'godot/addons/tododdle_support/LICENSE']) {
+  update(copy, () => license);
+}
+
 if (problems.length > 0) {
   console.error(`Version ${version} from /VERSION is not applied to: ${problems.join(', ')}`);
   console.error('Run `npm run sync-version`.');

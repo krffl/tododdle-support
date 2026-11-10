@@ -2,7 +2,7 @@
   "name": "@krffl/tododdle-support-react-native",
   "version": "1.0.0",
   "description": "React Native report sheet for ToDoddle Support.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/krffl/tododdle-support.git",

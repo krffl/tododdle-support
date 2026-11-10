@@ -2,7 +2,7 @@
   "name": "@krffl/tododdle-support",
   "version": "1.0.0",
   "description": "Headless one-way in-app issue reporting for ToDoddle Support (web and React Native core).",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/krffl/tododdle-support.git",

@@ -55,3 +55,7 @@ npm run typecheck
 Each platform has its own quality workflow (`quality.yml` for JS, plus `quality-swift.yml`,
 `quality-kotlin.yml`, `quality-flutter.yml` and `quality-godot.yml`). All of them run the shared
 conformance cases.
+
+## License
+
+MIT. See `LICENSE`. Each package carries a copy, so the Godot addon folder and the npm and Flutter packages keep it when copied or installed.
