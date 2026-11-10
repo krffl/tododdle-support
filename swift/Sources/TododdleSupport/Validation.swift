@@ -16,25 +16,24 @@ public enum ReportValidator {
         let title = report.title?.trimmedOrNil
         if let spec = form.title, spec.enabled {
             if spec.required, title == nil {
-                errors["title"] = "\(spec.label) is required."
+                errors["title"] = "This field is required."
             } else if let title, title.count > (spec.maxLength ?? 160) {
-                errors["title"] = "\(spec.label) must be \(spec.maxLength ?? 160) characters or fewer."
+                errors["title"] = "Use \(spec.maxLength ?? 160) characters or fewer."
             }
         }
 
         let description = report.description?.trimmedOrNil
         let descriptionSpec = form.description
-        let descriptionLabel = descriptionSpec?.label ?? "Description"
         if descriptionSpec?.required == true, description == nil {
-            errors["description"] = "\(descriptionLabel) is required."
+            errors["description"] = "This field is required."
         } else if let description, description.count > (descriptionSpec?.maxLength ?? 10_000) {
-            errors["description"] = "\(descriptionLabel) must be \(descriptionSpec?.maxLength ?? 10_000) characters or fewer."
+            errors["description"] = "Use \(descriptionSpec?.maxLength ?? 10_000) characters or fewer."
         }
 
         for field in form.fields {
             let value = report.fields[field.key]?.trimmedOrNil
             guard let value else {
-                if field.required { errors[field.key] = "\(field.label) is required." }
+                if field.required { errors[field.key] = field.type == .select ? "Choose an option." : "This field is required." }
                 continue
             }
             if field.type == .select, let options = field.options, !options.contains(value) {

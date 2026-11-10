@@ -86,7 +86,7 @@ Map<String, String> validateReport(Report report, {SupportConfig? config}) {
   }
   if (form.title.enabled) {
     if (form.title.required && title.isEmpty) {
-      add(ReportFieldKeys.title, 'Enter ${form.title.label}.');
+      add(ReportFieldKeys.title, 'This field is required.');
     } else if ((report.title?.length ?? 0) > form.title.maxLength) {
       add(
         ReportFieldKeys.title,
@@ -95,7 +95,7 @@ Map<String, String> validateReport(Report report, {SupportConfig? config}) {
     }
   }
   if (form.description.required && description.isEmpty) {
-    add(ReportFieldKeys.description, 'Enter ${form.description.label}.');
+    add(ReportFieldKeys.description, 'This field is required.');
   } else if ((report.description?.length ?? 0) > form.description.maxLength) {
     add(
       ReportFieldKeys.description,
@@ -105,7 +105,14 @@ Map<String, String> validateReport(Report report, {SupportConfig? config}) {
   for (final field in form.fields) {
     final value = report.fields[field.key]?.trim() ?? '';
     if (value.isEmpty) {
-      if (field.required) add(field.key, 'Enter ${field.label}.');
+      if (field.required) {
+        add(
+          field.key,
+          field.type == FieldType.select
+              ? 'Choose an option.'
+              : 'This field is required.',
+        );
+      }
       continue;
     }
     if (field.type == FieldType.select && !field.options.contains(value)) {

@@ -35,14 +35,14 @@ export function validateReport(config: Config, input: ReportInput): Record<strin
 
   const title = form.title;
   if (title?.enabled) {
-    if (title.required && isBlank(input.title)) errors.title = `Enter ${title.label.toLowerCase()}.`;
+    if (title.required && isBlank(input.title)) errors.title = 'This field is required.';
     const max = title.maxLength ?? TITLE_MAX_LENGTH;
     if (input.title !== undefined && input.title.length > max) errors.title = `Use ${max} characters or fewer.`;
   }
 
   const description = form.description;
   const descriptionMax = description?.maxLength ?? DESCRIPTION_MAX_LENGTH;
-  if (description?.required && isBlank(input.description)) errors.description = 'Describe what happened.';
+  if (description?.required && isBlank(input.description)) errors.description = 'This field is required.';
   if (input.description !== undefined && input.description.length > descriptionMax) {
     errors.description = `Use ${descriptionMax} characters or fewer.`;
   }

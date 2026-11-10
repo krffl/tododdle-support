@@ -20,8 +20,8 @@ describe('validateReport', () => {
         fields: { area: 'Moon', steps: 'x'.repeat(5001) },
       }),
     ).toEqual({
-      title: 'Enter summary.',
-      description: 'Describe what happened.',
+      title: 'This field is required.',
+      description: 'This field is required.',
       area: 'Choose one of the options.',
       steps: 'Use 5000 characters or fewer.',
     });

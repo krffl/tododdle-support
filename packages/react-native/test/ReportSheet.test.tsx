@@ -92,7 +92,7 @@ describe('ReportSheet', () => {
     expect(send.props.style).toEqual(expect.arrayContaining([{ backgroundColor: '#2f6d4f', borderColor: '#2f6d4f' }]));
     await press(root, 'Send report');
     expect(client.report).not.toHaveBeenCalled();
-    expect(texts(root)).toEqual(expect.arrayContaining(['Describe what happened.', 'Choose an option.']));
+    expect(texts(root)).toEqual(expect.arrayContaining(['This field is required.', 'Choose an option.']));
   });
 
   it('sends typed values with platform and host context, then thanks the person', async () => {

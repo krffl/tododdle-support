@@ -57,18 +57,18 @@ static func validate(report: TododdleSupportReport, config: TododdleSupportConfi
 		_add(errors, "type", "Choose a report type.")
 	if config.title_enabled:
 		if config.title_required and title.is_empty():
-			_add(errors, "title", "Enter %s." % config.title_label)
+			_add(errors, "title", "This field is required.")
 		elif _len(title) > config.title_max_length:
-			_add(errors, "title", "Use at most %d characters." % config.title_max_length)
+			_add(errors, "title", "Use %d characters or fewer." % config.title_max_length)
 	if config.description_required and description.is_empty():
-		_add(errors, "description", "Enter %s." % config.description_label)
+		_add(errors, "description", "This field is required.")
 	elif _len(description) > config.description_max_length:
-		_add(errors, "description", "Use at most %d characters." % config.description_max_length)
+		_add(errors, "description", "Use %d characters or fewer." % config.description_max_length)
 	for field in config.fields:
 		var value := str(report.fields.get(field.key, "")).strip_edges()
 		if value.is_empty():
 			if field.required:
-				_add(errors, field.key, "Enter %s." % field.label)
+				_add(errors, field.key, "Choose an option." if field.type == TododdleSupportField.SELECT else "This field is required.")
 			continue
 		if field.type == TododdleSupportField.SELECT and not field.options.has(value):
 			_add(errors, field.key, "Choose one of the options.")
