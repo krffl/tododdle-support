@@ -55,7 +55,12 @@ update('godot/addons/tododdle_support/tododdle_support.gd', (text) =>
 
 // Each package ships its own copy of the root LICENSE (npm, pub and a copied Godot addon folder).
 const license = readFileSync(join(root, 'LICENSE'), 'utf8');
-for (const copy of ['packages/js/LICENSE', 'packages/react-native/LICENSE', 'flutter/LICENSE', 'godot/addons/tododdle_support/LICENSE']) {
+for (const copy of [
+  'packages/js/LICENSE',
+  'packages/react-native/LICENSE',
+  'flutter/LICENSE',
+  'godot/addons/tododdle_support/LICENSE',
+]) {
   update(copy, () => license);
 }
 
