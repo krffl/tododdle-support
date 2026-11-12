@@ -52,8 +52,8 @@ try {
 
 | Option | Default | Notes |
 |---|---|---|
-| `key` | required | The project's public SDK key. |
-| `baseUrl` | `https://app.tododdle.com/api/support/sdk/v1` | |
+| `key` | required | The project's public SDK key. It must start with `tdsk_pub_` or `tdsk_test_`, or `createTododdleSupport` throws a `TypeError`. |
+| `baseUrl` | `https://app.tododdle.com/api/support/sdk/v1` | Must be `https`. Plain `http` is allowed only for `localhost`, `127.0.0.1` and `[::1]`, for local test servers. Anything else throws a `TypeError`. |
 | `appId` | none | Sent as `X-Tododdle-App-Id`. Browsers leave it out; their `Origin` is checked. |
 | `fetch` | global `fetch` | |
 | `storage` | memory | Anything with `getItem`, `setItem`, `removeItem` (sync or async), such as `localStorage`. |
@@ -67,8 +67,16 @@ try {
   If the network or the server fails, it returns the last good config so your form still opens.
 - `report()` checks the input against the config first (report type, required values, maximum
   lengths, SELECT options, attachment count, size and type) and sends nothing if it fails. It then
-  creates the report, uploads each attachment to its pre-signed URL with exactly the returned
-  headers, and submits it.
+  creates the report, uploads each attachment to its pre-signed URL with the returned headers,
+  and submits it.
+- Upload URLs must be `https` (plain `http` only for a loopback host). If the server sends any
+  other upload URL, `report()` fails with `INVALID_RESPONSE` before it uploads anything. The SDK
+  never sends `Host`, `Authorization`, `Cookie`, `Proxy-*`, `Connection`, `Transfer-Encoding` or
+  `Content-Length` from the returned upload headers.
+- Redirects are never followed (`redirect: 'error'`). A redirect fails like a network error.
+- Each attempt times out after 30 seconds and counts as a network error. Your own `signal` still
+  cancels the call at once with `ABORTED`. Where `AbortSignal.timeout` or `AbortSignal.any` is
+  missing (some React Native runtimes), the SDK uses a timer instead.
 - One idempotency key per report, reused on every retry, so a retry never creates a second ticket.
 - Retries: at most 3 attempts for `408`, `429`, `500`, `502`, `503`, `504` and network errors.
   It waits `Retry-After` seconds when given, otherwise 1 s then 2 s. Other errors are never retried.
@@ -96,7 +104,9 @@ are not queued; they fail with the network error instead.
 
 A small optional dialog built on the native `<dialog>` element. It renders the project's form,
 uses the project's accent colour and corners, labels every control, moves focus into the dialog,
-closes on Escape and returns focus afterwards.
+closes on Escape and returns focus afterwards. It shows the project logo only from an `https` URL,
+and uses the accent colours only when they match the contract's `#rrggbb` form (lowercase);
+otherwise it keeps its own defaults.
 
 ```ts
 import { createTododdleSupport } from '@krffl/tododdle-support';

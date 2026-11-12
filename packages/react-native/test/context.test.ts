@@ -24,7 +24,7 @@ describe('createTododdleSupport (React Native)', () => {
       });
     };
     const client = createTododdleSupport({
-      key: 'tdsk_pub_x',
+      key: 'tdsk_pub_TESTKEY0000000000000000000000000',
       baseUrl: 'https://example.test',
       fetch,
       appId: 'com.example',

@@ -170,4 +170,20 @@ describe('openReportDialog', () => {
     expect(dialog().style.getPropertyValue('--tdsk-radius')).toBe('0px');
     dialog().close();
   });
+
+  it('shows the logo only from https and applies only contract hex colours', async () => {
+    for (const logoUrl of ['http://example.test/logo.png', 'javascript:alert(1)', 'data:image/png;base64,AAAA']) {
+      const config = cloneConfig();
+      config.project.logoUrl = logoUrl;
+      config.theme.accent = 'red;background:url(https://evil.example/x)';
+      config.theme.onAccent = '#FFFFFF';
+      void openReportDialog(fakeSupport(async () => ({ status: 'queued', idempotencyKey: 'k' }), config));
+      await flush();
+      expect(dialog().querySelector('header img'), logoUrl).toBeNull();
+      expect(dialog().style.getPropertyValue('--tdsk-accent')).toBe('');
+      expect(dialog().style.getPropertyValue('--tdsk-on-accent')).toBe('');
+      dialog().close();
+      document.body.replaceChildren();
+    }
+  });
 });

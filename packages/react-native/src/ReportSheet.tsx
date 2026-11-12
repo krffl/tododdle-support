@@ -228,7 +228,7 @@ export function ReportSheet(props: ReportSheetProps): ReactNode {
     body = (
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          {project.logoUrl ? (
+          {isHttpsUrl(project.logoUrl) ? (
             <Image source={{ uri: project.logoUrl }} style={styles.logo} accessibilityIgnoresInvertColors />
           ) : null}
           <Text accessibilityRole="header" style={styles.title}>
@@ -317,6 +317,14 @@ export function ReportSheet(props: ReportSheetProps): ReactNode {
       </KeyboardAvoidingView>
     </Modal>
   );
+}
+
+/**
+ * Shows the project logo only from an https URL, never from http, data: or file: URLs. A regular
+ * expression, because React Native's `URL` does not implement `protocol`.
+ */
+function isHttpsUrl(value: string | null | undefined): value is string {
+  return typeof value === 'string' && /^https:\/\/[^\s/?#\\@]+(?:[/?#]\S*)?$/i.test(value);
 }
 
 function pickType(config: Config, preferred: ReportType | undefined): ReportType | null {

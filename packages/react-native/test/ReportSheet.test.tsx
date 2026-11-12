@@ -221,4 +221,18 @@ describe('ReportSheet', () => {
     await press(root, 'Send report');
     expect(vi.mocked(client.report).mock.calls[0]?.[0]).toMatchObject({ type: 'question', title: undefined });
   });
+
+  it('shows the logo only from an https URL', async () => {
+    for (const logoUrl of ['http://example.test/logo.png', 'file:///data/logo.png', 'https://user@evil.example/x']) {
+      const config = structuredClone(sharedConfig);
+      config.project.logoUrl = logoUrl;
+      const root = await render(
+        <ReportSheet client={fakeClient(received, async () => config)} visible onClose={() => undefined} />,
+      );
+      expect(
+        root.root.findAll((node) => is(node, 'Image')),
+        logoUrl,
+      ).toHaveLength(0);
+    }
+  });
 });

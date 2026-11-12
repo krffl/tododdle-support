@@ -14,6 +14,8 @@ export interface Call {
   method: string;
   headers: Record<string, string>;
   body: unknown;
+  redirect: RequestRedirect | undefined;
+  signal: AbortSignal | undefined;
 }
 
 type Responder = Response | Error | ((call: Call) => Response | Error);
@@ -31,6 +33,8 @@ export function fakeFetch(responders: Responder[]): FetchLike & { calls: Call[] 
       method: init?.method ?? 'GET',
       headers,
       body: typeof init?.body === 'string' ? JSON.parse(init.body) : init?.body,
+      redirect: init?.redirect,
+      signal: init?.signal ?? undefined,
     };
     calls.push(call);
     const next = responders.shift();

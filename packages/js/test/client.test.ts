@@ -8,6 +8,7 @@ import {
   type ReportInput,
   type SupportStorage,
 } from '../src/index';
+import { REQUEST_TIMEOUT_MS, withTimeout } from '../src/http';
 import { cloneConfig, empty, fakeFetch, json, sharedConfig } from './helpers';
 
 const key = 'tdsk_pub_TESTKEY0000000000000000000000000';
@@ -26,6 +27,38 @@ function client(fetch: ReturnType<typeof fakeFetch>, extra: Partial<Parameters<t
 describe('createTododdleSupport', () => {
   it('needs a key', () => {
     expect(() => createTododdleSupport({ key: '' })).toThrow(TypeError);
+  });
+
+  it('accepts only tdsk_pub_ and tdsk_test_ keys', () => {
+    for (const bad of ['sk_live_abc', 'tdsk_secret_abc', 'TDSK_PUB_abc', ' tdsk_pub_abc', 'tdsk_pub']) {
+      expect(() => createTododdleSupport({ key: bad, baseUrl }), bad).toThrow(TypeError);
+    }
+    expect(() => createTododdleSupport({ key: 'tdsk_test_TESTKEY000000000000000000000000', baseUrl })).not.toThrow();
+  });
+
+  it('needs an https base URL, or plain http only for a loopback host', () => {
+    for (const bad of [
+      'http://example.test/api',
+      'http://127.0.0.1.example.test',
+      'http://localhost@evil.example',
+      'http://evil.example\\@localhost',
+      'ftp://example.test',
+      'example.test/api',
+      'https://exa mple.test',
+    ]) {
+      expect(() => createTododdleSupport({ key, baseUrl: bad }), bad).toThrow(TypeError);
+    }
+    for (const good of [
+      'https://app.tododdle.com/api/support/sdk/v1',
+      'HTTPS://Example.test',
+      'http://127.0.0.1:8080',
+      'http://localhost:3000/api',
+      'http://[::1]:9000',
+      'http://user@localhost',
+    ]) {
+      expect(() => createTododdleSupport({ key, baseUrl: good }), good).not.toThrow();
+    }
+    expect(() => createTododdleSupport({ key })).not.toThrow();
   });
 
   it('sends the key, SDK name, app ID and trims the base URL', async () => {
@@ -215,6 +248,96 @@ describe('retry policy', () => {
     ).rejects.toMatchObject({ code: 'ABORTED' });
   });
 
+  it('never follows redirects and gives each attempt its own timeout signal', async () => {
+    const controller = new AbortController();
+    const fetch = fakeFetch([json(200, sharedConfig)]);
+    await client(fetch).getConfig({ signal: controller.signal });
+    expect(fetch.calls[0]?.redirect).toBe('error');
+    const signal = fetch.calls[0]?.signal;
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(signal).not.toBe(controller.signal);
+    expect(signal?.aborted).toBe(false);
+  });
+
+  it('fails a redirect as a network error after the usual retries', async () => {
+    vi.useFakeTimers();
+    const redirected = () => new TypeError('fetch failed: unexpected redirect');
+    const fetch = fakeFetch([redirected, redirected, redirected]);
+    const pending = client(fetch)
+      .getConfig()
+      .catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(3000);
+    expect(await pending).toMatchObject({ code: 'NETWORK_ERROR' });
+    expect(fetch.calls.every((call) => call.redirect === 'error')).toBe(true);
+  });
+
+  it('times out an attempt that never answers', async () => {
+    vi.useFakeTimers();
+    // Node's AbortSignal.timeout ignores fake timers, so build it on the faked setTimeout.
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(new DOMException('timed out', 'TimeoutError')), ms);
+      return controller.signal;
+    });
+    const fetch = vi.fn(
+      (_url: string, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'TimeoutError')));
+        }),
+    );
+    const pending = createTododdleSupport({ key, baseUrl, fetch })
+      .getConfig()
+      .catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(3 * REQUEST_TIMEOUT_MS + 3000);
+    expect(await pending).toMatchObject({ code: 'NETWORK_ERROR' });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(timeoutSpy).toHaveBeenCalledWith(REQUEST_TIMEOUT_MS);
+    timeoutSpy.mockRestore();
+  });
+
+  it('combines the caller signal with the timeout, with or without AbortSignal.any', () => {
+    vi.useFakeTimers();
+    const native = {
+      timeout: (ms: number) => {
+        const controller = new AbortController();
+        setTimeout(() => controller.abort(new DOMException('timed out', 'TimeoutError')), ms);
+        return controller.signal;
+      },
+      any: (signals: AbortSignal[]) => {
+        const controller = new AbortController();
+        for (const item of signals) item.addEventListener('abort', () => controller.abort(item.reason));
+        return controller.signal;
+      },
+    };
+    for (const statics of [native, {}]) {
+      const caller = new AbortController();
+      const cancelled = withTimeout(caller.signal, 50, statics);
+      caller.abort('stop');
+      expect(cancelled.signal?.aborted).toBe(true);
+      expect(cancelled.signal?.reason).toBe('stop');
+      cancelled.done();
+
+      const timed = withTimeout(new AbortController().signal, 50, statics);
+      expect(timed.signal?.aborted).toBe(false);
+      vi.advanceTimersByTime(50);
+      expect(timed.signal?.aborted).toBe(true);
+      timed.done();
+
+      const alone = withTimeout(undefined, 50, statics);
+      vi.advanceTimersByTime(50);
+      expect(alone.signal?.aborted).toBe(true);
+
+      const finished = withTimeout(undefined, 50, statics);
+      finished.done();
+      if (statics === native) continue;
+      vi.advanceTimersByTime(50);
+      expect(finished.signal?.aborted).toBe(false);
+    }
+    const preAborted = new AbortController();
+    preAborted.abort('early');
+    expect(withTimeout(preAborted.signal, 50, {}).signal?.aborted).toBe(true);
+  });
+
   it('parses Retry-After dates', () => {
     const now = Date.parse('2026-11-09T10:00:00Z');
     expect(parseRetryAfter('Mon, 09 Nov 2026 10:00:30 GMT', now)).toBe(30);
@@ -313,6 +436,76 @@ describe('report', () => {
     });
     expect(fetch.calls[1]?.headers).toEqual({ 'content-type': 'image/png' });
     expect(fetch.calls[3]?.url).toBe(`${baseUrl}/reports/rpt_AAAAAAAAAAAAAAAA0002/submit`);
+  });
+
+  it('drops upload headers that could leak credentials or break framing', async () => {
+    const fetch = fakeFetch([
+      json(201, {
+        reportId: 'rpt_AAAAAAAAAAAAAAAA0002',
+        status: 'awaiting_uploads',
+        submitToken: 'st_0123456789abcdef0123456789abcdef',
+        expiresAt: '2099-01-01T00:00:00Z',
+        uploads: [
+          {
+            uploadUrl: 'https://files.example/1',
+            headers: {
+              'Content-Type': 'image/png',
+              'x-amz-meta-report': 'rpt',
+              Host: 'evil.example',
+              Authorization: 'Bearer stolen',
+              COOKIE: 'session=1',
+              'Proxy-Authorization': 'Basic x',
+              Connection: 'close',
+              'Transfer-Encoding': 'chunked',
+              'Content-Length': '999',
+            },
+            expiresAt: '2099',
+          },
+        ],
+      }),
+      empty(200),
+      json(200, { reportId: 'rpt_AAAAAAAAAAAAAAAA0002', status: 'received' }),
+    ]);
+    await client(fetch).report(
+      { ...validReport, attachments: [{ fileName: 'a.png', contentType: 'image/png', data: new Uint8Array([1]) }] },
+      { config: sharedConfig },
+    );
+    expect(fetch.calls[1]?.headers).toEqual({ 'content-type': 'image/png', 'x-amz-meta-report': 'rpt' });
+    expect(fetch.calls[1]?.redirect).toBe('error');
+  });
+
+  it('refuses upload URLs that are not https or loopback http, before uploading anything', async () => {
+    const input: ReportInput = {
+      ...validReport,
+      attachments: [
+        { fileName: 'a.png', contentType: 'image/png', data: new Uint8Array([1]) },
+        { fileName: 'b.png', contentType: 'image/png', data: new Uint8Array([2]) },
+      ],
+    };
+    const awaiting = (second: unknown) =>
+      json(201, {
+        reportId: 'rpt_AAAAAAAAAAAAAAAA0002',
+        status: 'awaiting_uploads',
+        submitToken: 'st_0123456789abcdef0123456789abcdef',
+        uploads: [
+          { uploadUrl: 'https://files.example/1', headers: {}, expiresAt: '' },
+          { uploadUrl: second, headers: {}, expiresAt: '' },
+        ],
+      });
+    for (const bad of ['http://files.example/2', 'file:///etc/passwd', 'javascript:alert(1)', '/relative', 42]) {
+      const fetch = fakeFetch([awaiting(bad)]);
+      await expect(client(fetch).report(input, { config: sharedConfig }), String(bad)).rejects.toMatchObject({
+        code: 'INVALID_RESPONSE',
+      });
+      expect(fetch.calls).toHaveLength(1);
+    }
+    const fetch = fakeFetch([
+      awaiting('http://127.0.0.1:9000/upload/2'),
+      empty(200),
+      empty(200),
+      json(200, { reportId: 'rpt_AAAAAAAAAAAAAAAA0002', status: 'received' }),
+    ]);
+    await expect(client(fetch).report(input, { config: sharedConfig })).resolves.toMatchObject({ status: 'received' });
   });
 
   it('fails clearly when an upload fails or the server answers oddly', async () => {

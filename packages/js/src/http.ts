@@ -10,16 +10,57 @@ export const RETRY_POLICY = {
 
 const retryStatuses: readonly number[] = RETRY_POLICY.retryStatuses;
 
+/** Each attempt is cancelled after this long, so a stalled connection cannot hang a report. */
+export const REQUEST_TIMEOUT_MS = 30_000;
+
 export interface SendOptions {
   fetch: FetchLike;
   signal?: AbortSignal | undefined;
   maxRetryAfterSeconds: number;
+  /** Per-attempt timeout. Defaults to `REQUEST_TIMEOUT_MS`. */
+  timeoutMs?: number | undefined;
+}
+
+interface AbortSignalStatics {
+  timeout?: (ms: number) => AbortSignal;
+  any?: (signals: AbortSignal[]) => AbortSignal;
+}
+
+/**
+ * Combines the caller's signal with a timeout. Uses `AbortSignal.timeout` and `AbortSignal.any`
+ * where they exist, and an `AbortController` with a timer elsewhere (older React Native runtimes).
+ * Call `done` when the attempt is over so the fallback timer is cleared.
+ */
+export function withTimeout(
+  signal: AbortSignal | undefined,
+  ms: number,
+  statics: AbortSignalStatics | undefined = typeof AbortSignal === 'undefined' ? undefined : AbortSignal,
+): { signal: AbortSignal | undefined; done: () => void } {
+  if (typeof statics?.timeout === 'function' && typeof statics.any === 'function') {
+    const timeout = statics.timeout(ms);
+    return { signal: signal ? statics.any([signal, timeout]) : timeout, done: () => undefined };
+  }
+  if (typeof AbortController === 'undefined') return { signal, done: () => undefined };
+  const controller = new AbortController();
+  const onAbort = () => controller.abort(signal?.reason);
+  const timer = setTimeout(() => controller.abort(new Error('The request timed out.')), ms);
+  if (signal?.aborted) controller.abort(signal.reason);
+  else signal?.addEventListener('abort', onAbort, { once: true });
+  return {
+    signal: controller.signal,
+    done: () => {
+      clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
+    },
+  };
 }
 
 /**
  * Sends one logical request with the shared retry policy: at most 3 attempts; retry only network
  * errors and the retry statuses; wait `Retry-After` seconds when given, otherwise 1 s then 2 s.
- * Returns the last response, which may still be an error response.
+ * Redirects are never followed: a server that redirects fails as a network error. Each attempt
+ * times out after `REQUEST_TIMEOUT_MS`. Returns the last response, which may still be an error
+ * response.
  */
 export async function sendWithRetry(url: string, init: RequestInit, options: SendOptions): Promise<Response> {
   const { signal } = options;
@@ -27,8 +68,9 @@ export async function sendWithRetry(url: string, init: RequestInit, options: Sen
     throwIfAborted(signal);
     const isLast = attempt >= RETRY_POLICY.maxAttempts;
     let response: Response;
+    const timed = withTimeout(signal, options.timeoutMs ?? REQUEST_TIMEOUT_MS);
     try {
-      response = await options.fetch(url, { ...init, signal });
+      response = await options.fetch(url, { ...init, redirect: 'error', signal: timed.signal });
     } catch (error) {
       if (signal?.aborted) throw abortedError(error);
       if (isLast) {
@@ -41,6 +83,8 @@ export async function sendWithRetry(url: string, init: RequestInit, options: Sen
       }
       await sleep(backoffMs(attempt), signal);
       continue;
+    } finally {
+      timed.done();
     }
     if (isLast || !retryStatuses.includes(response.status)) return response;
 

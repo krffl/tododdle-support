@@ -27,6 +27,8 @@ interface Exchange {
 interface Case {
   name: string;
   operation: 'getConfig' | 'getConfigTwice' | 'report' | 'reportWithAttachment';
+  /** Replaces `report.context.screen` for this case. */
+  screen?: string;
   attachment?: { fileName: string; contentType: 'image/png' | 'text/plain'; bytesBase64: string };
   exchanges: Exchange[];
   expect: {
@@ -198,6 +200,11 @@ interface Outcome {
   error?: unknown;
 }
 
+function caseReport(testCase: Case): ReportInput {
+  if (testCase.screen === undefined) return suite.report;
+  return { ...suite.report, context: { ...suite.report.context, screen: testCase.screen } };
+}
+
 async function runOperation(testCase: Case, baseUrl: string): Promise<Outcome> {
   const client = createTododdleSupport({ key: suite.key, baseUrl });
   try {
@@ -208,12 +215,12 @@ async function runOperation(testCase: Case, baseUrl: string): Promise<Outcome> {
         await client.getConfig();
         return { ok: true, config: await client.getConfig() };
       case 'report':
-        return { ok: true, result: await client.report(suite.report, { config: suite.config }) };
+        return { ok: true, result: await client.report(caseReport(testCase), { config: suite.config }) };
       case 'reportWithAttachment': {
         const attachment = testCase.attachment;
         if (!attachment) throw new Error('case has no attachment');
         const input: ReportInput = {
-          ...suite.report,
+          ...caseReport(testCase),
           attachments: [
             {
               fileName: attachment.fileName,
@@ -241,8 +248,8 @@ describe('retry policy', () => {
 });
 
 describe.concurrent('conformance cases', () => {
-  it('covers all 11 cases', () => {
-    expect(suite.cases).toHaveLength(11);
+  it('covers all 14 cases', () => {
+    expect(suite.cases).toHaveLength(14);
   });
 
   for (const testCase of suite.cases) {

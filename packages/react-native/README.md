@@ -46,6 +46,11 @@ export function HelpButton() {
 }
 ```
 
+The sheet shows the project logo only when its URL is `https`. The client follows the core
+package's rules: the key must start with `tdsk_pub_` or `tdsk_test_`, the base URL must be `https`
+(plain `http` only for a loopback host), redirects are never followed, and each attempt times out
+after 30 seconds.
+
 ### Screenshots
 
 The SDK never captures the screen. Your app can pass an image it already has, or let the person

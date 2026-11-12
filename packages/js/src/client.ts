@@ -16,13 +16,14 @@ import type {
   TododdleSupport,
   TododdleSupportOptions,
 } from './types';
-import { byteSize, createIdempotencyKey, stripQuery } from './util';
+import { byteSize, createIdempotencyKey, isAllowedUrl, safeUploadHeaders, stripQuery } from './util';
 import { validateReport } from './validate';
 import { SDK_VERSION } from './version';
 
 export const DEFAULT_BASE_URL = 'https://app.tododdle.com/api/support/sdk/v1';
 const DEFAULT_MAX_RETRY_AFTER_SECONDS = 60;
 const MAX_QUEUED_REPORTS = 50;
+const KEY_PREFIXES = ['tdsk_pub_', 'tdsk_test_'] as const;
 
 interface CachedConfig {
   etag: string | null;
@@ -146,7 +147,13 @@ export function createTododdleSupport(options: TododdleSupportOptions): Tododdle
   if (typeof options.key !== 'string' || options.key.length === 0) {
     throw new TypeError('createTododdleSupport needs the project public key.');
   }
+  if (!KEY_PREFIXES.some((prefix) => options.key.startsWith(prefix))) {
+    throw new TypeError('The key must be a ToDoddle public key that starts with tdsk_pub_ or tdsk_test_.');
+  }
   const baseUrl = (options.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, '');
+  if (!isAllowedUrl(baseUrl)) {
+    throw new TypeError('The base URL must use https (plain http only for localhost, 127.0.0.1 or ::1).');
+  }
   const storage = options.storage ?? memoryStorage();
   const sdkHeader = `${options.sdkName ?? 'js'}/${options.sdkVersion ?? SDK_VERSION}`;
   const prefix = `tododdle-support:${fingerprint(`${baseUrl}|${options.key}`)}`;
@@ -238,12 +245,13 @@ export function createTododdleSupport(options: TododdleSupportOptions): Tododdle
     attachment: AttachmentInput,
     signal: AbortSignal | undefined,
   ): Promise<void> {
-    // Only the returned headers: the upload URL is pre-signed and needs nothing else.
+    // Only the returned headers: the upload URL is pre-signed and needs nothing else. Headers that
+    // could carry credentials or change framing are dropped even if the server sends them.
     // Every fetch implementation accepts Blob, ArrayBuffer and typed arrays as a body.
     const body = attachment.data as BodyInit;
     const response = await sendWithRetry(
       target.uploadUrl,
-      { method: 'PUT', headers: { ...target.headers }, body },
+      { method: 'PUT', headers: safeUploadHeaders(target.headers), body },
       { fetch: fetchFn(), signal, maxRetryAfterSeconds },
     );
     if (!response.ok) {
@@ -265,6 +273,10 @@ export function createTododdleSupport(options: TododdleSupportOptions): Tododdle
     if (created.status === 'received') return created;
     const uploads = created.uploads ?? [];
     if (!created.submitToken || uploads.length !== attachments.length) throw invalidResponse(201);
+    // Check every URL first, so nothing is uploaded when the server sends one the SDK refuses.
+    if (!uploads.every((target) => typeof target.uploadUrl === 'string' && isAllowedUrl(target.uploadUrl))) {
+      throw invalidResponse(201);
+    }
     for (let i = 0; i < uploads.length; i += 1) {
       const target = uploads[i];
       const attachment = attachments[i];

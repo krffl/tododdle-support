@@ -15,6 +15,7 @@ import type {
   ReportType,
   TododdleSupport,
 } from './types';
+import { isHexColor, isHttpsUrl } from './util';
 import { DESCRIPTION_MAX_LENGTH, fieldMaxLength, TITLE_MAX_LENGTH } from './validate';
 
 export interface ReportDialogOptions {
@@ -33,7 +34,7 @@ export interface ReportDialogOptions {
 }
 
 const STYLE = `
-.tdsk{--tdsk-bg:#fff;--tdsk-fg:#1d1d1f;--tdsk-muted:#5f6368;--tdsk-line:#c8cbd0;--tdsk-error:#b3261e;
+.tdsk{--tdsk-accent:#1d1d1f;--tdsk-on-accent:#fff;--tdsk-bg:#fff;--tdsk-fg:#1d1d1f;--tdsk-muted:#5f6368;--tdsk-line:#c8cbd0;--tdsk-error:#b3261e;
 color:var(--tdsk-fg);background:var(--tdsk-bg);border:1px solid var(--tdsk-line);border-radius:var(--tdsk-radius);
 padding:0;width:min(32rem,calc(100vw - 2rem));max-height:calc(100vh - 2rem);font:15px/1.45 system-ui,sans-serif}
 @media (prefers-color-scheme:dark){.tdsk{--tdsk-bg:#1f2123;--tdsk-fg:#f1f3f4;--tdsk-muted:#b0b4b9;--tdsk-line:#4a4e53;--tdsk-error:#f2b8b5}}
@@ -107,8 +108,9 @@ function showDialog(
   let result: ReportResult | null = null;
 
   const dialog = el('dialog', { class: 'tdsk', 'aria-labelledby': `${id}-title` });
-  dialog.style.setProperty('--tdsk-accent', theme.accent);
-  dialog.style.setProperty('--tdsk-on-accent', theme.onAccent);
+  // Only colours in the contract's form reach the stylesheet; anything else keeps the defaults.
+  if (isHexColor(theme.accent)) dialog.style.setProperty('--tdsk-accent', theme.accent);
+  if (isHexColor(theme.onAccent)) dialog.style.setProperty('--tdsk-on-accent', theme.onAccent);
   dialog.style.setProperty('--tdsk-radius', theme.corners === 'square' ? '0px' : '12px');
 
   function field(key: string, label: string, control: HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement) {
@@ -199,7 +201,7 @@ function showDialog(
   const header = el(
     'header',
     {},
-    project.logoUrl ? el('img', { src: project.logoUrl, alt: '' }) : null,
+    isHttpsUrl(project.logoUrl) ? el('img', { src: project.logoUrl, alt: '' }) : null,
     el('h2', { id: `${id}-title` }, wording.dialogTitle),
   );
   const formNode = el(
