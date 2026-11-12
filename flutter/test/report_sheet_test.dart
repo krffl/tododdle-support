@@ -183,10 +183,49 @@ void main() {
     expect(find.text('Thanks!'), findsOneWidget);
     expect(find.text('We read every report.'), findsOneWidget);
     expect(submitted?.reportId, 'rpt_AAAAAAAAAAAAAAAA0001');
+    expect(find.text('Reference: rpt_AAAAAAAAAAAAAAAA0001'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('tododdle-close')));
     expect(closed, isTrue);
     expect(closedWith?.reportId, 'rpt_AAAAAAAAAAAAAAAA0001');
+  });
+
+  testWidgets('shows the queued message and no reference when offline', (
+    tester,
+  ) async {
+    final client = TododdleSupport(
+      key: 'tdsk_pub_TESTKEY0000000000000000000000000',
+      baseUrl: 'https://mock.tododdle.test',
+      contextProvider: null,
+      queueStore: MemoryReportQueueStore(),
+      retryPolicy: const RetryPolicy(
+        maxAttempts: 1,
+        backoff: [],
+        retryStatuses: {},
+      ),
+      httpClient: MockClient((request) async {
+        if (request.url.path == '/config') {
+          return http.Response(_configJson, 200);
+        }
+        throw http.ClientException('offline', request.url);
+      }),
+    );
+    await _pump(tester, ReportSheet(client: client));
+    await tester.enterText(
+      find.byKey(const ValueKey('tododdle-description')),
+      'Favourites vanish.',
+    );
+    await _chooseArea(tester, 'Home');
+    await _submit(tester);
+
+    expect(find.text('Thanks!'), findsOneWidget);
+    expect(
+      find.text(
+        'You are offline. Your report will be sent when you are back online.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('tododdle-reference')), findsNothing);
   });
 
   testWidgets('shows server field errors', (tester) async {

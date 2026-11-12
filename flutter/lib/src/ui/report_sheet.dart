@@ -34,6 +34,7 @@ class ReportSheetStrings {
     this.close = 'Close',
     this.queuedMessage =
         'You are offline. Your report will be sent when you are back online.',
+    this.reference = 'Reference',
   });
 
   /// Label of the report type picker.
@@ -86,6 +87,10 @@ class ReportSheetStrings {
 
   /// Shown on the thank-you screen when the report was queued.
   final String queuedMessage;
+
+  /// Label before the report ID on the thank-you screen, for example
+  /// "Reference: rpt_…". The ID is not shown while a report is queued.
+  final String reference;
 }
 
 /// Shows a [ReportSheet] in a modal bottom sheet. Completes with the receipt
@@ -781,6 +786,18 @@ class _ReportSheetState extends State<ReportSheet> {
         if (_receipt?.queued ?? false) ...[
           const SizedBox(height: 8),
           Text(widget.strings.queuedMessage, textAlign: TextAlign.center),
+        ],
+        if (_receipt?.reportId case final reportId?) ...[
+          const SizedBox(height: 8),
+          SelectableText(
+            '${widget.strings.reference}: $reportId',
+            key: const ValueKey('tododdle-reference'),
+            textAlign: TextAlign.center,
+            style: textTheme.bodySmall?.copyWith(
+              fontFamily: 'monospace',
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
         ],
         const SizedBox(height: 24),
         FilledButton(

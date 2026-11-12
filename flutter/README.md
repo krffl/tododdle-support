@@ -58,7 +58,8 @@ final receipt = await showTododdleReportSheet(
 
 The sheet loads `GET /config`, shows the project's report types, title, description and custom
 fields, and uses the project's accent colour and corner style. It checks required fields before
-sending, shows field errors from the server, and ends with the project's thank-you wording.
+sending, shows field errors from the server, and ends with the project's thank-you wording and
+the report reference (`Reference: rpt_…`). A queued report shows the offline message instead.
 `showTododdleReportSheet` completes with the `ReportReceipt`, or null if the person closed the
 sheet without sending.
 
