@@ -161,15 +161,21 @@ class _Replay {
       _header(request, name)?.isNotEmpty ?? false;
 }
 
-Report _sharedReport({List<ReportAttachment> attachments = const []}) {
+/// The shared report. A case's `screen`, when set, replaces
+/// `report.context.screen`.
+Report _sharedReport(
+  Json testCase, {
+  List<ReportAttachment> attachments = const [],
+}) {
   final shared = _map(_cases['report']);
+  final context = {..._map(shared['context']), 'screen': ?testCase['screen']};
   final config = _map(_map(_cases['config'])['form']);
   return Report(
     type: ReportType(shared['type']! as String),
     formVersion: config['version']! as int,
     description: shared['description'] as String?,
     fields: _map(shared['fields']).cast<String, String>(),
-    context: ReportContext.fromJson(_map(shared['context'])),
+    context: ReportContext.fromJson(context),
     reporter: Reporter.fromJson(_map(shared['reporter'])),
     attachments: attachments,
   );
@@ -191,8 +197,8 @@ void main() {
     );
   });
 
-  test('there are 11 conformance cases', () {
-    expect(cases, hasLength(11));
+  test('there are 14 conformance cases', () {
+    expect(cases, hasLength(14));
   });
 
   for (final testCase in cases) {
@@ -218,11 +224,12 @@ void main() {
             await client.config();
             result = await client.config();
           case 'report':
-            result = await client.report(_sharedReport());
+            result = await client.report(_sharedReport(testCase));
           case 'reportWithAttachment':
             final a = _map(testCase['attachment']);
             result = await client.report(
               _sharedReport(
+                testCase,
                 attachments: [
                   ReportAttachment(
                     fileName: a['fileName']! as String,

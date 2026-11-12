@@ -33,6 +33,10 @@ can only read the report form and send reports, so it is safe to ship inside an 
 
 If the key lists allowed app IDs, pass your bundle ID or package name as `appId`.
 
+The constructor throws an `ArgumentError` for a key that does not start with `tdsk_pub_` or
+`tdsk_test_`, and for a `baseUrl` that is not `https`. Plain `http` is allowed only for a loopback
+host (`127.0.0.1`, `::1`, `localhost`), so a local test server still works.
+
 ## Report sheet
 
 ```dart
@@ -126,6 +130,14 @@ HTTP 408, 429, 500, 502, 503 and 504; wait for `Retry-After` when the server sen
 tickets. A `Retry-After` longer than `RetryPolicy.maxRetryAfter` (60 s) ends the call instead of
 blocking; the exception has `retryAfter`.
 
+### Transport rules
+
+- The SDK never follows redirects. A `3xx` answer fails the call with `HTTP_ERROR` and its status.
+- Attachment uploads go only to an `https` `uploadUrl` (plain `http` only for a loopback host).
+  Any other upload URL fails the report with `INVALID_RESPONSE` before anything is uploaded.
+- The SDK never sends `Host`, `Authorization`, `Cookie`, `Proxy-*`, `Connection`,
+  `Transfer-Encoding` or `Content-Length` from the server's upload `headers`.
+
 ### Config cache
 
 `config()` keeps the last good config in memory and sends `If-None-Match` with its `ETag`. Pass a
@@ -142,13 +154,19 @@ online; it sends queued reports in order with their original idempotency keys. `
 keeps entries in memory only. For a persistent queue, implement `ReportQueueStore` with app-private
 storage: entries hold what the person typed and their attachments.
 
+The queue is capped. It holds at most 10 reports (`TododdleSupport.maxQueuedReports`) and 20 MB of
+stored entries in total (`maxQueuedBytes`, attachments count as base64). When a new report would
+go over a limit, the oldest reports are dropped first. Reports queued more than 7 days ago
+(`maxQueuedAge`) are dropped. A single report bigger than 20 MB is not queued: `report()` throws
+its network error instead.
+
 ### Context
 
 The SDK fills only these context values, and only when you have not set them: platform
 (`flutter`), app version and build (`package_info_plus`), OS name and version and device model
 (`device_info_plus`), and locale. Nothing else is collected: no device name, identifiers,
-location, logs or URLs. Set `screen` and `extra` yourself, without query strings or personal
-data. Pass `contextProvider: null` to turn automatic context off.
+location, logs or URLs. Set `screen` and `extra` yourself, without personal data. The SDK cuts
+`screen` at the first `?` or `#`, so query strings and fragments are never sent. Pass `contextProvider: null` to turn automatic context off.
 
 ## Example
 

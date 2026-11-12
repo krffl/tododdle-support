@@ -453,7 +453,8 @@ class ReportContext {
   /// A BCP 47 locale such as `en-GB`.
   final String? locale;
 
-  /// The screen or route name, without a query string.
+  /// The screen or route name. Anything from the first `?` or `#` on is
+  /// never sent, so query strings and fragments cannot leak tokens.
   final String? screen;
 
   /// App-defined key/value context, shown on the ticket as is.
@@ -484,7 +485,7 @@ class ReportContext {
     'osVersion': ?osVersion,
     'deviceModel': ?deviceModel,
     'locale': ?locale,
-    'screen': ?screen,
+    'screen': ?_screenWithoutQuery(screen),
     if (extra.isNotEmpty) 'extra': extra,
   };
 
@@ -502,6 +503,14 @@ class ReportContext {
         ? const {}
         : asStringMap(json['extra'], 'context.extra'),
   );
+}
+
+/// [screen] cut at the first `?` or `#`, or null when nothing is left.
+String? _screenWithoutQuery(String? screen) {
+  if (screen == null) return null;
+  final end = screen.indexOf(RegExp('[?#]'));
+  final path = end < 0 ? screen : screen.substring(0, end);
+  return path.isEmpty ? null : path;
 }
 
 /// Optional, unverified details about the person reporting. ToDoddle never

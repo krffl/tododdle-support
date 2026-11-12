@@ -46,6 +46,10 @@ class TododdleSupport {
   /// Creates a client.
   ///
   /// - [key]: the project's public SDK key (`tdsk_pub_…` or `tdsk_test_…`).
+  ///   Any other key throws an [ArgumentError].
+  /// - [baseUrl]: the API base URL. It must use `https`; plain `http` is
+  ///   allowed only for a loopback host (`127.0.0.1`, `::1`, `localhost`).
+  ///   Any other URL throws an [ArgumentError].
   /// - [appId]: the iOS bundle ID or Android package name, sent as
   ///   `X-Tododdle-App-Id` when the key lists allowed app IDs.
   /// - [configStore]: keeps the last good config between launches.
@@ -68,7 +72,35 @@ class TododdleSupport {
   }) : _http = httpClient ?? http.Client(),
        _ownsHttp = httpClient == null,
        _configStore = configStore,
-       _delay = delay;
+       _delay = delay {
+    if (!key.startsWith('tdsk_pub_') && !key.startsWith('tdsk_test_')) {
+      throw ArgumentError.value(
+        '…',
+        'key',
+        'must be a public SDK key that starts with tdsk_pub_ or tdsk_test_',
+      );
+    }
+    final base = Uri.tryParse(baseUrl);
+    if (base == null || !isAllowedSdkUrl(base)) {
+      throw ArgumentError.value(
+        baseUrl,
+        'baseUrl',
+        'must use https (http only for 127.0.0.1, ::1 or localhost)',
+      );
+    }
+  }
+
+  /// The most reports the offline queue holds. When a new report would go
+  /// over this, the oldest queued reports are dropped.
+  static const maxQueuedReports = 10;
+
+  /// Queued reports older than this are dropped.
+  static const maxQueuedAge = Duration(days: 7);
+
+  /// The most bytes the offline queue holds in total (the stored entries,
+  /// including attachments as base64). The oldest reports are dropped first.
+  /// A single report bigger than this is not queued.
+  static const maxQueuedBytes = 20 * 1024 * 1024;
 
   /// The production API base URL.
   static const defaultBaseUrl = 'https://app.tododdle.com/api/support/sdk/v1';
@@ -195,8 +227,10 @@ class TododdleSupport {
       return await _sendReport(resolved);
     } on TododdleSupportException catch (e) {
       final store = queueStore;
-      if (e.isTransient && queueIfOffline && store != null) {
-        await _enqueue(store, resolved);
+      if (e.isTransient &&
+          queueIfOffline &&
+          store != null &&
+          await _enqueue(store, resolved)) {
         return const ReportReceipt.queued();
       }
       rethrow;
@@ -204,6 +238,8 @@ class TododdleSupport {
   }
 
   /// The number of reports waiting in the offline queue.
+
+  // Queue entries are the report's queue JSON plus `queuedAt`.
   Future<int> queuedCount() async => (await queueStore?.read())?.length ?? 0;
 
   /// Sends queued reports, oldest first, with their original idempotency
@@ -224,7 +260,9 @@ class TododdleSupport {
     final done = Completer<void>();
     _flushing = done.future;
     try {
-      final entries = await store.read();
+      final stored = await store.read();
+      final entries = _withinQueueLimits(stored);
+      if (entries.length != stored.length) await store.write(entries);
       final sent = <ReportReceipt>[];
       final dropped = <TododdleSupportException>[];
       var index = 0;
@@ -297,12 +335,21 @@ class TododdleSupport {
         'uploads do not match the declared attachments',
       );
     }
+    final uploadUris = response.uploads.map((upload) {
+      final uri = Uri.tryParse(upload.uploadUrl);
+      if (uri == null || !isAllowedSdkUrl(uri)) {
+        throw TododdleSupportException.invalidResponse(
+          'the upload URL is not HTTPS',
+        );
+      }
+      return uri;
+    }).toList();
     for (var i = 0; i < report.attachments.length; i++) {
       final upload = response.uploads[i];
       await _send(
         'PUT',
-        Uri.parse(upload.uploadUrl),
-        headers: upload.headers,
+        uploadUris[i],
+        headers: safeUploadHeaders(upload.headers),
         bytes: report.attachments[i].bytes,
         sdkHeaders: false,
         ok: (status) => status >= 200 && status < 300,
@@ -324,9 +371,39 @@ class TododdleSupport {
     return ReportReceipt(reportId: result.reportId);
   }
 
-  Future<void> _enqueue(ReportQueueStore store, Report report) async {
+  /// Queues [report] within the queue limits. Returns false when the report
+  /// alone is bigger than [maxQueuedBytes].
+  Future<bool> _enqueue(ReportQueueStore store, Report report) async {
+    final entry = jsonEncode({
+      ...report.toQueueJson(),
+      'queuedAt': DateTime.now().toUtc().toIso8601String(),
+    });
+    if (utf8.encode(entry).length > maxQueuedBytes) return false;
     final entries = await store.read();
-    await store.write([...entries, jsonEncode(report.toQueueJson())]);
+    await store.write(_withinQueueLimits([...entries, entry]));
+    return true;
+  }
+
+  /// Drops entries older than [maxQueuedAge], then the oldest entries until
+  /// at most [maxQueuedReports] and [maxQueuedBytes] remain.
+  static List<String> _withinQueueLimits(List<String> entries) {
+    final cutoff = DateTime.now().toUtc().subtract(maxQueuedAge);
+    final kept = entries.where((entry) {
+      try {
+        final queuedAt = (jsonDecode(entry) as Map)['queuedAt'];
+        if (queuedAt is! String) return true;
+        final at = DateTime.tryParse(queuedAt);
+        return at == null || at.isAfter(cutoff);
+      } on Object {
+        return true; // flushQueue reports unreadable entries as dropped.
+      }
+    }).toList();
+    var bytes = kept.fold<int>(0, (sum, e) => sum + utf8.encode(e).length);
+    while (kept.isNotEmpty &&
+        (kept.length > maxQueuedReports || bytes > maxQueuedBytes)) {
+      bytes -= utf8.encode(kept.removeAt(0)).length;
+    }
+    return kept;
   }
 
   Future<CachedConfig?> _loadCached() async {
@@ -380,7 +457,8 @@ class TododdleSupport {
   }) async {
     final body = json == null ? bytes : utf8.encode(jsonEncode(json));
     for (var attempt = 1; ; attempt++) {
-      final request = http.Request(method, uri);
+      // Never follow a redirect: a 3xx is returned as an error status.
+      final request = http.Request(method, uri)..followRedirects = false;
       if (sdkHeaders) {
         request.headers['X-Tododdle-Key'] = key;
         request.headers['X-Tododdle-Sdk'] = tododdleSupportSdkHeader;
@@ -458,6 +536,35 @@ class TododdleSupport {
     );
   }
 }
+
+/// Whether [uri] may carry SDK traffic: `https`, or plain `http` only for a
+/// loopback host so local test servers work.
+bool isAllowedSdkUrl(Uri uri) {
+  if (uri.host.isEmpty) return false;
+  if (uri.scheme == 'https') return true;
+  return uri.scheme == 'http' && _loopbackHosts.contains(uri.host);
+}
+
+const _loopbackHosts = {'127.0.0.1', '::1', 'localhost'};
+
+/// Headers from the server's upload instructions that the SDK never sends.
+const _forbiddenUploadHeaders = {
+  'host',
+  'authorization',
+  'cookie',
+  'connection',
+  'transfer-encoding',
+  'content-length',
+};
+
+/// [headers] without `Host`, `Authorization`, `Cookie`, `Proxy-*`,
+/// `Connection`, `Transfer-Encoding` and `Content-Length`.
+Map<String, String> safeUploadHeaders(Map<String, String> headers) => {
+  for (final entry in headers.entries)
+    if (!_forbiddenUploadHeaders.contains(entry.key.toLowerCase()) &&
+        !entry.key.toLowerCase().startsWith('proxy-'))
+      entry.key: entry.value,
+};
 
 class _Upload {
   const _Upload(this.uploadUrl, this.headers);

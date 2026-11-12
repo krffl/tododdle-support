@@ -506,5 +506,286 @@ void main() {
       );
       expect(await queue.read(), isEmpty);
     });
+
+    test('keeps at most 10 reports and drops the oldest', () async {
+      final queue = MemoryReportQueueStore();
+      final h = _Harness(List.filled(36, _networkError()));
+      final client = h.client(queueStore: queue);
+      final reports = List.generate(12, (_) => _report());
+      for (final report in reports) {
+        expect((await client.report(report)).queued, isTrue);
+      }
+      expect(TododdleSupport.maxQueuedReports, 10);
+      final keys = (await queue.read())
+          .map((e) => (jsonDecode(e) as Map)['idempotencyKey'])
+          .toList();
+      expect(keys, reports.skip(2).map((r) => r.idempotencyKey).toList());
+    });
+
+    test('drops reports older than 7 days', () async {
+      String entry(Report report, Duration age) => jsonEncode({
+        ...report.toQueueJson(),
+        'queuedAt': DateTime.now().toUtc().subtract(age).toIso8601String(),
+      });
+      final old = _report();
+      final fresh = _report();
+      final queue = MemoryReportQueueStore();
+      await queue.write([
+        entry(old, const Duration(days: 8)),
+        entry(fresh, const Duration(days: 1)),
+      ]);
+      final h = _Harness([_received]);
+      final result = await h.client(queueStore: queue).flushQueue();
+      expect(result.sent, hasLength(1));
+      expect(result.remaining, 0);
+      expect(
+        (jsonDecode(h.requests.single.body) as Map)['idempotencyKey'],
+        fresh.idempotencyKey,
+      );
+    });
+
+    Report bigReport(int bytes, {int files = 1}) => Report(
+      type: ReportType.problem,
+      formVersion: 3,
+      description: 'x',
+      attachments: [
+        for (var i = 0; i < files; i++)
+          ReportAttachment(
+            fileName: 'log$i.txt',
+            contentType: 'text/plain',
+            bytes: Uint8List(bytes),
+          ),
+      ],
+    );
+
+    test('keeps the queue under 20 MB by dropping the oldest', () async {
+      final queue = MemoryReportQueueStore();
+      final h = _Harness(List.filled(6, _networkError()));
+      final client = h.client(queueStore: queue);
+      final first = bigReport(9 * 1024 * 1024);
+      final second = bigReport(9 * 1024 * 1024);
+      await client.report(first);
+      await client.report(second);
+      final entries = await queue.read();
+      expect(entries, hasLength(1));
+      expect(
+        (jsonDecode(entries.single) as Map)['idempotencyKey'],
+        second.idempotencyKey,
+      );
+    });
+
+    test('does not queue a report bigger than the byte budget', () async {
+      final queue = MemoryReportQueueStore();
+      final h = _Harness(List.filled(3, _networkError()));
+      await expectLater(
+        h
+            .client(queueStore: queue)
+            .report(bigReport(8 * 1024 * 1024, files: 2)),
+        throwsA(
+          isA<TododdleSupportException>().having(
+            (e) => e.code,
+            'code',
+            TododdleErrorCodes.networkError,
+          ),
+        ),
+      );
+      expect(await queue.read(), isEmpty);
+    });
+  });
+
+  group('transport security', () {
+    Handler awaitingUpload(String url, Map<String, String> headers) =>
+        _respond(201, {
+          'reportId': 'rpt_AAAAAAAAAAAAAAAA0002',
+          'status': 'awaiting_uploads',
+          'submitToken': 'st_0123456789abcdef0123456789abcdef',
+          'expiresAt': '2099-01-01T00:00:00Z',
+          'uploads': [
+            {
+              'uploadUrl': url,
+              'headers': headers,
+              'expiresAt': '2099-01-01T00:00:00Z',
+            },
+          ],
+        });
+
+    Report withAttachment() => Report(
+      type: ReportType.problem,
+      formVersion: 3,
+      description: 'x',
+      attachments: [
+        ReportAttachment(
+          fileName: 'a.png',
+          contentType: 'image/png',
+          bytes: Uint8List.fromList([1, 2, 3]),
+        ),
+      ],
+    );
+
+    for (final url in [
+      'http://uploads.example.com/u/1',
+      'ftp://uploads.example.com/u/1',
+      'https:///no-host',
+      'not a url',
+    ]) {
+      test('refuses the upload URL $url', () async {
+        final h = _Harness([awaitingUpload(url, const {})]);
+        await expectLater(
+          h.client().report(withAttachment()),
+          throwsA(
+            isA<TododdleSupportException>().having(
+              (e) => e.code,
+              'code',
+              TododdleErrorCodes.invalidResponse,
+            ),
+          ),
+        );
+        expect(h.requests, hasLength(1));
+      });
+    }
+
+    for (final url in [
+      'http://127.0.0.1:9000/u/1',
+      'http://localhost/u/1',
+      'http://[::1]:9000/u/1',
+    ]) {
+      test('allows a plain-HTTP loopback upload URL $url', () async {
+        final h = _Harness([
+          awaitingUpload(url, const {'Content-Type': 'image/png'}),
+          _respond(200),
+          _respond(200, {
+            'reportId': 'rpt_AAAAAAAAAAAAAAAA0002',
+            'status': 'received',
+          }),
+        ]);
+        final receipt = await h.client().report(withAttachment());
+        expect(receipt.reportId, 'rpt_AAAAAAAAAAAAAAAA0002');
+        expect(h.requests[1].url, Uri.parse(url));
+      });
+    }
+
+    test('drops unsafe headers from the upload instructions', () async {
+      final h = _Harness([
+        awaitingUpload('https://uploads.test/u/1', const {
+          'Content-Type': 'image/png',
+          'Host': 'evil.test',
+          'Authorization': 'Bearer leaked',
+          'cookie': 'session=1',
+          'Proxy-Authorization': 'Basic x',
+          'Connection': 'close',
+          'Transfer-Encoding': 'chunked',
+          'Content-Length': '99',
+          'x-amz-meta-a': 'b',
+        }),
+        _respond(200),
+        _respond(200, {
+          'reportId': 'rpt_AAAAAAAAAAAAAAAA0002',
+          'status': 'received',
+        }),
+      ]);
+      await h.client().report(withAttachment());
+      final upload = h.requests[1];
+      expect(upload.headers.keys.map((k) => k.toLowerCase()).toSet(), {
+        'content-type',
+        'x-amz-meta-a',
+      });
+    });
+
+    test('never follows redirects', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      final paths = <String>[];
+      server.listen((request) {
+        paths.add(request.uri.path);
+        request.response
+          ..statusCode = HttpStatus.found
+          ..headers.set('Location', '/elsewhere')
+          ..close();
+      });
+      addTearDown(() => server.close(force: true));
+      final client = TododdleSupport(
+        key: 'tdsk_test_TESTKEY0000000000000000000000000',
+        baseUrl: 'http://127.0.0.1:${server.port}/api',
+        contextProvider: null,
+      );
+      addTearDown(client.close);
+      await expectLater(
+        client.config(),
+        throwsA(
+          isA<TododdleSupportException>()
+              .having((e) => e.code, 'code', TododdleErrorCodes.httpError)
+              .having((e) => e.httpStatus, 'httpStatus', 302),
+        ),
+      );
+      expect(paths, ['/api/config']);
+    });
+
+    test('marks every request as not following redirects', () async {
+      final h = _Harness([_received]);
+      await h.client().report(_report());
+      expect(h.requests.single.followRedirects, isFalse);
+    });
+
+    for (final url in [
+      'http://app.tododdle.com/api/support/sdk/v1',
+      'ftp://app.tododdle.com',
+      'https://',
+      'not a url',
+    ]) {
+      test('refuses the base URL $url', () {
+        expect(
+          () => TododdleSupport(
+            key: 'tdsk_pub_TESTKEY0000000000000000000000000',
+            baseUrl: url,
+          ),
+          throwsArgumentError,
+        );
+      });
+    }
+
+    for (final url in [
+      'https://app.tododdle.com/api/support/sdk/v1',
+      'http://127.0.0.1:8080',
+      'http://localhost:3000/api',
+      'http://[::1]:8080',
+    ]) {
+      test('accepts the base URL $url', () {
+        TododdleSupport(
+          key: 'tdsk_pub_TESTKEY0000000000000000000000000',
+          baseUrl: url,
+        ).close();
+      });
+    }
+
+    for (final key in ['tdsk_live_abc', 'sk_test_abc', '', 'TDSK_PUB_ABC']) {
+      test('refuses the key "$key"', () {
+        expect(() => TododdleSupport(key: key), throwsArgumentError);
+      });
+    }
+
+    test('accepts tdsk_pub_ and tdsk_test_ keys', () {
+      TododdleSupport(key: 'tdsk_pub_abc').close();
+      TododdleSupport(key: 'tdsk_test_abc').close();
+    });
+  });
+
+  group('screen', () {
+    for (final entry in {
+      'Favourites': 'Favourites',
+      'Favourites?tab=recent': 'Favourites',
+      'Favourites#token=abc': 'Favourites',
+      'Favourites#a?b=c': 'Favourites',
+      '/orders/42?x=1#y': '/orders/42',
+    }.entries) {
+      test('sends "${entry.value}" for "${entry.key}"', () {
+        expect(
+          ReportContext(screen: entry.key).toJson()['screen'],
+          entry.value,
+        );
+      });
+    }
+
+    test('leaves screen out when only a query string is left', () {
+      expect(ReportContext(screen: '?x=1').toJson(), isNot(contains('screen')));
+    });
   });
 }
