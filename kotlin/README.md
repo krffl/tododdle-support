@@ -125,6 +125,21 @@ if (showReport) {
 
 A full activity is in [`examples/android/MainActivity.kt`](examples/android/MainActivity.kt).
 
+### Security rules
+
+- The key must start with `tdsk_pub_` or `tdsk_test_`. Any other key throws
+  `IllegalArgumentException` when you create the `Configuration`.
+- `baseUrl` must be HTTPS. Plain HTTP is allowed only for a loopback host (`127.0.0.1`, `::1`,
+  `localhost`), for local test servers. To reach a dev server from the emulator, use
+  `adb reverse` and `http://127.0.0.1:<port>`.
+- The SDK never follows redirects, also with your own `httpClient` (it uses a copy with redirects
+  turned off). A redirect fails the call with `INVALID_RESPONSE`.
+- Upload URLs from the server must be HTTPS (plain HTTP only for a loopback host), or the call
+  fails with `INVALID_RESPONSE`. The SDK never sends `Host`, `Authorization`, `Cookie`, `Proxy-*`,
+  `Connection`, `Transfer-Encoding` or `Content-Length` from the server's upload headers.
+- `ReportContext.screen` is sent without its query string or fragment (everything from the first
+  `?` or `#` is dropped).
+
 ## Offline queue (optional)
 
 ```kotlin
@@ -139,6 +154,20 @@ try {
 sends it with WorkManager when the device is online, with the same idempotency key on every
 attempt. Refused reports are dropped. The work is tagged `SupportQueue.WORK_TAG`; its output has
 `reportId` or `errorCode`.
+
+The queue is capped like the other SDKs: at most 10 reports (`SupportQueue.MAX_QUEUED_REPORTS`),
+none older than 7 days (`MAX_QUEUED_AGE_MILLIS`), and at most 20 MB of report files in total
+(`MAX_QUEUED_BYTES`). When a new report breaks a cap, the oldest reports are dropped first. The
+newest report is always kept. Expired reports are dropped instead of sent.
+
+The worker keeps the configuration's `key`, `baseUrl`, `appId`, `collectContext`,
+`cacheConfigOnDisk` and `maxRetryAfterSeconds`. It cannot keep your `httpClient`, so if you use
+your own client (for example for certificate pinning or a proxy), give the queue a factory in
+`Application.onCreate`:
+
+```kotlin
+SupportQueue.httpClientFactory = { myOkHttpClient }
+```
 
 ## Development
 

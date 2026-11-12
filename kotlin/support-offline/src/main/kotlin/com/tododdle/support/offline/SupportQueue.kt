@@ -15,6 +15,7 @@ import com.tododdle.support.Report
 import com.tododdle.support.ReportValidator
 import com.tododdle.support.TododdleSupport
 import com.tododdle.support.TododdleSupportException
+import okhttp3.OkHttpClient
 import java.io.File
 import java.util.concurrent.TimeUnit
 
@@ -24,6 +25,10 @@ import java.util.concurrent.TimeUnit
  *
  * Add the `support-offline` artifact only if you want this; the core library has no WorkManager
  * dependency.
+ *
+ * The queue holds at most [MAX_QUEUED_REPORTS] reports, drops reports older than
+ * [MAX_QUEUED_AGE_MILLIS], and keeps report files under [MAX_QUEUED_BYTES] in total. When a new
+ * report would break a cap, the oldest reports are dropped first.
  */
 public object SupportQueue {
     /** Output key of a finished work item: the report ID. */
@@ -34,6 +39,25 @@ public object SupportQueue {
 
     /** WorkManager tag on every queued report. */
     public const val WORK_TAG: String = "tododdle-support-report"
+
+    /** The most reports the queue holds. Saving one more drops the oldest. */
+    public const val MAX_QUEUED_REPORTS: Int = 10
+
+    /** Queued reports older than this (7 days) are dropped. */
+    public const val MAX_QUEUED_AGE_MILLIS: Long = 7L * 24 * 60 * 60 * 1000
+
+    /** The most bytes of queued report files (20 MB). Saving more drops the oldest reports. */
+    public const val MAX_QUEUED_BYTES: Long = 20L * 1024 * 1024
+
+    /**
+     * Supplies the OkHttp client the background worker uses to send queued reports. The worker
+     * runs without your app's [Configuration], so set this in `Application.onCreate` when you
+     * pass your own [Configuration.httpClient] (for example for certificate pinning or a proxy).
+     * When null, the SDK's default client is used.
+     */
+    @JvmStatic
+    @Volatile
+    public var httpClientFactory: (() -> OkHttpClient)? = null
 
     internal const val INPUT_ID: String = "id"
     internal const val MAX_ATTEMPTS: Int = 10
@@ -72,6 +96,10 @@ public object SupportQueue {
     @JvmStatic
     public fun workName(idempotencyKey: String): String = "tododdle-support-$idempotencyKey"
 
+    /** The configuration the worker sends with: the stored one plus the app's HTTP client, if any. */
+    internal fun workerConfiguration(stored: Configuration): Configuration =
+        httpClientFactory?.invoke()?.let { stored.copy(httpClient = it) } ?: stored
+
     internal fun store(context: Context): QueueStore =
         QueueStore(File(context.noBackupFilesDir, "tododdle-support-queue"))
 }
@@ -90,7 +118,7 @@ public class SendReportWorker(
             return Result.failure()
         }
         return try {
-            val receipt = TododdleSupport(applicationContext, configuration).report(report)
+            val receipt = TododdleSupport(applicationContext, SupportQueue.workerConfiguration(configuration)).report(report)
             store.delete(id)
             Result.success(workDataOf(SupportQueue.OUTPUT_REPORT_ID to receipt.reportId))
         } catch (e: TododdleSupportException) {
