@@ -118,5 +118,5 @@ jobs:
           DIST_TAG: ${{ needs.build.outputs.dist_tag }}
         run: |
           # The core first: the React Native package depends on this exact version.
-          npm publish "packed/krffl-tododdle-support-${VERSION}.tgz" --tag "${DIST_TAG}"
-          npm publish "packed/krffl-tododdle-support-react-native-${VERSION}.tgz" --tag "${DIST_TAG}"
+          npm publish "./packed/krffl-tododdle-support-${VERSION}.tgz" --tag "${DIST_TAG}"
+          npm publish "./packed/krffl-tododdle-support-react-native-${VERSION}.tgz" --tag "${DIST_TAG}"
