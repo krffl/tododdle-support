@@ -52,7 +52,7 @@ public data class ReportContext(
     val osVersion: String? = null,
     val deviceModel: String? = null,
     val locale: String? = null,
-    /** Screen or route name, without a query string. */
+    /** Screen or route name. The SDK drops anything from the first `?` or `#` before sending. */
     val screen: String? = null,
     /** App-defined key/value context, shown on the ticket as is. Up to 20 entries. */
     val extra: Map<String, String>? = null,

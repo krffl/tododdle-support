@@ -1,12 +1,15 @@
 package com.tododdle.support
 
+import com.tododdle.support.internal.isSecureOrLoopback
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.OkHttpClient
 
 /**
  * Settings for [TododdleSupport].
  *
  * @property key The project's public SDK key (`tdsk_pub_…` or `tdsk_test_…`). It is safe to ship.
- * @property baseUrl The API base, including `/api/support/sdk/v1`.
+ * @property baseUrl The API base, including `/api/support/sdk/v1`. It must be HTTPS. Plain HTTP is
+ *   allowed only for a loopback host (127.0.0.1, ::1, localhost), for local test servers.
  * @property appId Sent as `X-Tododdle-App-Id`. Defaults to the app's package name.
  * @property collectContext Add app version, build, Android version, device model and locale to
  *   each report. Nothing else is ever collected automatically.
@@ -15,7 +18,8 @@ import okhttp3.OkHttpClient
  * @property maxRetryAfterSeconds The longest `Retry-After` the SDK waits for inside one call.
  *   A longer wait fails the call with [ErrorCode.RATE_LIMITED] and
  *   [TododdleSupportException.retryAfterSeconds] set, so the app or the offline queue can retry later.
- * @property httpClient Your own OkHttp client, for example to share its connection pool.
+ * @property httpClient Your own OkHttp client, for example to share its connection pool. The SDK
+ *   turns off redirects on its copy of it.
  */
 public data class Configuration @JvmOverloads constructor(
     val key: String,
@@ -28,8 +32,11 @@ public data class Configuration @JvmOverloads constructor(
 ) {
     init {
         require(key.isNotBlank()) { "The SDK key is empty." }
-        require(baseUrl.startsWith("https://") || baseUrl.startsWith("http://")) {
-            "baseUrl must be an http(s) URL."
+        require(key.startsWith("tdsk_pub_") || key.startsWith("tdsk_test_")) {
+            "The SDK key must start with tdsk_pub_ or tdsk_test_."
+        }
+        require(baseUrl.toHttpUrlOrNull()?.isSecureOrLoopback() == true) {
+            "baseUrl must be an HTTPS URL. Plain HTTP is allowed only for 127.0.0.1, ::1 or localhost."
         }
     }
 

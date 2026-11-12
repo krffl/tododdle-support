@@ -61,6 +61,14 @@ internal class Http(
                 attempt++
                 continue
             }
+            if (result.status in 300..399 && result.status != 304) {
+                // The SDK never follows redirects: a redirect could send the key or the report elsewhere.
+                throw TododdleSupportException(
+                    code = ErrorCode.INVALID_RESPONSE,
+                    httpStatus = result.status,
+                    message = "ToDoddle answered with a redirect (HTTP ${result.status}), which the SDK does not follow.",
+                )
+            }
             if (result.status !in RetryPolicy.RETRY_STATUSES || attempt >= RetryPolicy.MAX_ATTEMPTS) {
                 return result
             }

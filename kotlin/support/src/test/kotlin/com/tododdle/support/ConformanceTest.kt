@@ -48,7 +48,9 @@ class ConformanceTest(private val name: String, private val case: JsonObject) {
 
         @JvmStatic
         @Parameterized.Parameters(name = "{0}")
-        fun cases(): List<Array<Any>> = root.getValue("cases").jsonArray.map {
+        fun cases(): List<Array<Any>> = root.getValue("cases").jsonArray.also {
+            check(it.size == 14) { "Expected 14 conformance cases, found ${it.size}. Update this runner." }
+        }.map {
             val case = it.jsonObject
             arrayOf(case.getValue("name").jsonPrimitive.content, case)
         }
@@ -219,7 +221,8 @@ class ConformanceTest(private val name: String, private val case: JsonObject) {
             description = template["description"]?.jsonPrimitive?.content,
             title = template["title"]?.jsonPrimitive?.content,
             fields = template["fields"]?.jsonObject?.mapValues { it.value.jsonPrimitive.content }.orEmpty(),
-            context = template["context"]?.let { json.decodeFromJsonElement(ReportContext.serializer(), it) },
+            context = template["context"]?.let { json.decodeFromJsonElement(ReportContext.serializer(), it) }
+                ?.let { context -> case["screen"]?.let { context.copy(screen = it.jsonPrimitive.content) } ?: context },
             reporter = template["reporter"]?.let { json.decodeFromJsonElement(Reporter.serializer(), it) },
             attachments = listOfNotNull(attachment),
             formVersion = root.getValue("config").jsonObject.getValue("form").jsonObject.getValue("version").jsonPrimitive.int,

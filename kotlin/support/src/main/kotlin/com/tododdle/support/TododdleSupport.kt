@@ -12,6 +12,9 @@ import com.tododdle.support.internal.ReportResponseBody
 import com.tododdle.support.internal.SubmitBody
 import com.tododdle.support.internal.SupportJson
 import com.tododdle.support.internal.UploadTarget
+import com.tododdle.support.internal.isForbiddenUploadHeader
+import com.tododdle.support.internal.isSecureOrLoopback
+import com.tododdle.support.internal.stripQueryAndFragment
 import com.tododdle.support.internal.toException
 import kotlinx.coroutines.delay
 import kotlinx.serialization.SerializationException
@@ -47,7 +50,7 @@ public class TododdleSupport internal constructor(
     private val baseUrl: HttpUrl = configuration.baseUrl.trimEnd('/').toHttpUrl()
     private val appId: String? = configuration.appId ?: environment.appId
     private val http = Http(
-        client = configuration.httpClient ?: defaultClient,
+        client = configuration.httpClient?.withoutRedirects() ?: defaultClient,
         sleep = sleep,
         maxRetryAfterSeconds = configuration.maxRetryAfterSeconds,
     )
@@ -160,11 +163,14 @@ public class TododdleSupport internal constructor(
         } catch (e: IllegalArgumentException) {
             throw invalidResponse(null, "The upload URL is not valid.")
         }
-        // Send exactly the returned headers. Never send the SDK key to the storage host.
-        val contentType = target.headers.entries.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }?.value
+        if (!url.isSecureOrLoopback()) throw invalidResponse(null, "The upload URL is not HTTPS.")
+        // Send the returned headers, except ones that could leak credentials or break framing.
+        // Never send the SDK key to the storage host.
+        val headers = target.headers.filterKeys { !isForbiddenUploadHeader(it) }
+        val contentType = headers.entries.firstOrNull { it.key.equals("Content-Type", ignoreCase = true) }?.value
         val result = http.send {
             val builder = Request.Builder().url(url)
-            target.headers.forEach { (name, value) ->
+            headers.forEach { (name, value) ->
                 if (!name.equals("Content-Type", ignoreCase = true)) builder.header(name, value)
             }
             builder.put(attachment.bytes.toRequestBody(contentType?.toMediaTypeOrNull())).build()
@@ -191,9 +197,14 @@ public class TododdleSupport internal constructor(
     }
 
     private fun reportContext(appContext: ReportContext?): ReportContext? {
-        if (!configuration.collectContext) return appContext
-        val automatic = runCatching { environment.automaticContext() }.getOrNull()
-        return appContext?.mergedOver(automatic) ?: automatic
+        val merged = if (!configuration.collectContext) {
+            appContext
+        } else {
+            val automatic = runCatching { environment.automaticContext() }.getOrNull()
+            appContext?.mergedOver(automatic) ?: automatic
+        }
+        // Query strings and fragments can carry tokens or personal data.
+        return merged?.screen?.let { merged.copy(screen = stripQueryAndFragment(it)) } ?: merged
     }
 
     private fun request(url: HttpUrl): Request.Builder = Request.Builder()
@@ -229,7 +240,13 @@ public class TododdleSupport internal constructor(
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(30, TimeUnit.SECONDS)
                 .writeTimeout(60, TimeUnit.SECONDS)
+                .followRedirects(false)
+                .followSslRedirects(false)
                 .build()
         }
+
+        /** A copy that shares the app client's pool but never follows a redirect. */
+        private fun OkHttpClient.withoutRedirects(): OkHttpClient =
+            newBuilder().followRedirects(false).followSslRedirects(false).build()
     }
 }
