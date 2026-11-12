@@ -1,6 +1,6 @@
 {
   "name": "@krffl/tododdle-support-react-native",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "React Native report sheet for ToDoddle Support.",
   "license": "MIT",
   "repository": {
@@ -49,7 +49,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@krffl/tododdle-support": "1.0.2"
+    "@krffl/tododdle-support": "1.0.3"
   },
   "peerDependencies": {
     "react": ">=18",

@@ -23,7 +23,7 @@ signal report_finished(result: TododdleSupportResult)
 
 ## This addon's version, sent as [code]X-Tododdle-Sdk: godot/<version>[/code]. Kept in step with
 ## the repository's VERSION file by scripts/sync-version.mjs.
-const SDK_VERSION := "1.0.2"
+const SDK_VERSION := "1.0.3"
 const SDK_NAME := "godot"
 const PLATFORM := "godot"
 const DEFAULT_BASE_URL := TododdleSupportSettings.DEFAULT_BASE_URL
