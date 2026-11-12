@@ -22,8 +22,12 @@ public actor TododdleSupport {
             case memoryAndDisk
         }
 
-        /// The project's public SDK key, `tdsk_pub_…` (or `tdsk_test_…`).
+        /// The project's public SDK key, `tdsk_pub_…` (or `tdsk_test_…`). Requests with any other
+        /// key fail with ``TododdleSupportError/Code/invalidKey`` and nothing is sent.
         public var key: String
+        /// Must be HTTPS. Plain HTTP is allowed only for a loopback host (`127.0.0.1`, `::1`,
+        /// `localhost`), for local test servers. Requests with any other base URL fail with
+        /// ``TododdleSupportError/Code/invalidConfiguration`` and nothing is sent.
         public var baseURL: URL
         /// Sent as `X-Tododdle-App-Id`. Defaults to the bundle identifier. `nil` sends no header.
         public var appId: String?
@@ -140,7 +144,7 @@ public actor TododdleSupport {
             return cached.config
         }
 
-        var request = apiRequest(path: "config", method: "GET")
+        var request = try apiRequest(path: "config", method: "GET")
         if let etag = cached?.etag {
             request.setValue(etag, forHTTPHeaderField: "If-None-Match")
         }
@@ -218,6 +222,7 @@ public actor TododdleSupport {
             throw TododdleSupportError(code: .invalidFields, message: "Check the highlighted fields.", fields: fieldErrors)
         }
 
+        try checkConfiguration()
         let request = makeRequest(report, config: resolved)
         do {
             return try await send(request, attachments: report.attachments)
@@ -273,7 +278,7 @@ public actor TododdleSupport {
 
     /// Runs the whole report flow for one request body. Every retry inside reuses the same body.
     private func send(_ body: ReportRequest, attachments: [ReportAttachment]) async throws -> ReportReceipt {
-        var request = apiRequest(path: "reports", method: "POST")
+        var request = try apiRequest(path: "reports", method: "POST")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
 
@@ -294,7 +299,7 @@ public actor TododdleSupport {
             try await self.upload(attachment, to: upload)
         }
 
-        var submit = apiRequest(path: "reports/\(created.reportId)/submit", method: "POST")
+        var submit = try apiRequest(path: "reports/\(created.reportId)/submit", method: "POST")
         submit.setValue("application/json", forHTTPHeaderField: "Content-Type")
         submit.httpBody = try JSONEncoder().encode(SubmitRequest(submitToken: submitToken))
         let (submitData, submitHTTP) = try await transport.send(submit)
@@ -302,15 +307,15 @@ public actor TododdleSupport {
         return ReportReceipt(reportId: submitted.reportId, status: .received, idempotencyKey: body.idempotencyKey)
     }
 
-    /// `PUT`s the raw bytes with exactly the returned headers. The SDK key is not sent to the upload host.
+    /// `PUT`s the raw bytes with the returned headers, minus the ones a server must not set
+    /// (see ``isForbiddenUploadHeader(_:)``). The SDK key is not sent to the upload host.
     private func upload(_ attachment: ReportAttachment, to upload: ReportResponse.Upload) async throws {
-        guard let url = URL(string: upload.uploadUrl), let scheme = url.scheme?.lowercased(),
-              scheme == "https" || (scheme == "http" && configuration.baseURL.scheme?.lowercased() == "http") else {
+        guard let url = URL(string: upload.uploadUrl), Self.isAllowedURL(url) else {
             throw TododdleSupportError.invalidResponse("The upload URL is not a valid HTTPS URL.")
         }
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
-        for (name, value) in upload.headers {
+        for (name, value) in upload.headers where !Self.isForbiddenUploadHeader(name) {
             request.setValue(value, forHTTPHeaderField: name)
         }
         request.httpBody = attachment.data
@@ -330,7 +335,36 @@ public actor TododdleSupport {
         return response
     }
 
-    private func apiRequest(path: String, method: String) -> URLRequest {
+    /// True for HTTPS URLs with a host, and for plain HTTP only when the host is loopback.
+    static func isAllowedURL(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), let host = url.host?.lowercased(), !host.isEmpty else { return false }
+        if scheme == "https" { return true }
+        return scheme == "http" && ["127.0.0.1", "::1", "[::1]", "localhost"].contains(host)
+    }
+
+    /// Upload headers the SDK never sends, even when the server lists them.
+    static func isForbiddenUploadHeader(_ name: String) -> Bool {
+        let lowered = name.lowercased()
+        return lowered.hasPrefix("proxy-") ||
+            ["host", "authorization", "cookie", "connection", "transfer-encoding", "content-length"].contains(lowered)
+    }
+
+    /// Refuses a key without the public or test prefix, and a base URL that is not HTTPS (or loopback HTTP).
+    private func checkConfiguration() throws {
+        let key = configuration.key
+        guard key.hasPrefix("tdsk_pub_") || key.hasPrefix("tdsk_test_") else {
+            throw TododdleSupportError(code: .invalidKey, message: "The SDK key must start with tdsk_pub_ or tdsk_test_.")
+        }
+        guard Self.isAllowedURL(configuration.baseURL) else {
+            throw TododdleSupportError(
+                code: .invalidConfiguration,
+                message: "The base URL must use HTTPS. Plain HTTP is allowed only for 127.0.0.1, ::1 or localhost."
+            )
+        }
+    }
+
+    private func apiRequest(path: String, method: String) throws -> URLRequest {
+        try checkConfiguration()
         var request = URLRequest(url: configuration.baseURL.appendingPathComponent(path))
         request.httpMethod = method
         request.setValue(configuration.key, forHTTPHeaderField: "X-Tododdle-Key")

@@ -23,7 +23,23 @@ struct RetryPolicy: Sendable {
 
 typealias SleepFunction = @Sendable (Duration) async throws -> Void
 
+/// Refuses every redirect for the SDK's own requests, even when the app's `URLSession` would follow
+/// them. The task then completes with the 3xx response, which ``Transport`` turns into an error.
+final class RedirectRefuser: NSObject, URLSessionTaskDelegate, Sendable {
+    static let shared = RedirectRefuser()
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest
+    ) async -> URLRequest? {
+        nil
+    }
+}
+
 /// Sends requests with the shared retry policy. It never adds headers of its own.
+/// Redirects are never followed (see ``RedirectRefuser``).
 struct Transport: Sendable {
     let session: URLSession
     let policy: RetryPolicy
@@ -36,12 +52,18 @@ struct Transport: Sendable {
             attempt += 1
             let failure: TododdleSupportError
             do {
-                let (data, response) = try await session.data(for: request)
+                let (data, response) = try await session.data(for: request, delegate: RedirectRefuser.shared)
                 guard let http = response as? HTTPURLResponse else {
                     throw TododdleSupportError.invalidResponse("The response was not HTTP.")
                 }
                 if (200..<300).contains(http.statusCode) || http.statusCode == 304 {
                     return (data, http)
+                }
+                if (300..<400).contains(http.statusCode) {
+                    throw TododdleSupportError.invalidResponse(
+                        "The server answered with a redirect (HTTP \(http.statusCode)). The SDK does not follow redirects.",
+                        status: http.statusCode
+                    )
                 }
                 failure = TododdleSupportError.from(
                     status: http.statusCode,

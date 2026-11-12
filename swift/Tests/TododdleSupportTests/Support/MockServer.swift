@@ -6,7 +6,8 @@ import Foundation
 /// It is installed with ``StubURLProtocol``. Requests must arrive in the listed order and match by
 /// method and path. `{{baseUrl}}` is ``MockServer/baseURL``.
 final class MockServer: @unchecked Sendable {
-    static let baseURL = "http://mock.test"
+    /// A loopback origin, because the SDK refuses plain HTTP for any other host.
+    static let baseURL = "http://127.0.0.1"
 
     struct Recorded {
         var method: String
@@ -161,6 +162,12 @@ final class StubURLProtocol: URLProtocol, @unchecked Sendable {
         case .networkError(let error):
             client?.urlProtocol(self, didFailWithError: error)
         case .http(let response, let data):
+            if (300..<400).contains(response.statusCode), response.statusCode != 304,
+               let location = response.value(forHTTPHeaderField: "Location"),
+               let target = URL(string: location, relativeTo: request.url) {
+                // Lets URLSession decide whether to follow, as a real server's redirect would.
+                client?.urlProtocol(self, wasRedirectedTo: URLRequest(url: target.absoluteURL), redirectResponse: response)
+            }
             client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
             if !data.isEmpty { client?.urlProtocol(self, didLoad: data) }
             client?.urlProtocolDidFinishLoading(self)

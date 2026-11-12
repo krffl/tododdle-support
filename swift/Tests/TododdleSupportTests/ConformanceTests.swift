@@ -16,6 +16,9 @@ final class ConformanceTests: XCTestCase {
         "support_unavailable_is_not_retried",
         "expired_report",
         "unknown_error_code_falls_back_to_status",
+        "screen_drops_query_string",
+        "screen_drops_fragment",
+        "upload_url_must_use_https",
     ]
 
     override func tearDown() {
@@ -40,6 +43,9 @@ final class ConformanceTests: XCTestCase {
     func test_support_unavailable_is_not_retried() async throws { try await run("support_unavailable_is_not_retried") }
     func test_expired_report() async throws { try await run("expired_report") }
     func test_unknown_error_code_falls_back_to_status() async throws { try await run("unknown_error_code_falls_back_to_status") }
+    func test_screen_drops_query_string() async throws { try await run("screen_drops_query_string") }
+    func test_screen_drops_fragment() async throws { try await run("screen_drops_fragment") }
+    func test_upload_url_must_use_https() async throws { try await run("upload_url_must_use_https") }
 
     // MARK: Runner
 
@@ -79,6 +85,11 @@ final class ConformanceTests: XCTestCase {
             case "report", "reportWithAttachment":
                 let config = try JSONDecoder().decode(SupportConfig.self, from: configData)
                 var report = try Fixtures.report(root["report"]!)
+                if let screen = testCase["screen"]?.string {
+                    var context = report.context ?? ReportContext()
+                    context.screen = screen
+                    report.context = context
+                }
                 if testCase["operation"]?.string == "reportWithAttachment" {
                     report.attachments = [try XCTUnwrap(attachment, "The case has no attachment")]
                 }
@@ -179,6 +190,7 @@ enum Fixtures {
 
     static func client(
         key: String = "tdsk_pub_TESTKEY0000000000000000000000000",
+        baseURL: URL = URL(string: MockServer.baseURL)!,
         sleep: @escaping SleepFunction = { _ in },
         configCache: TododdleSupport.Configuration.ConfigCache = .memory,
         configDirectory: URL? = nil,
@@ -188,7 +200,7 @@ enum Fixtures {
         TododdleSupport(
             configuration: .init(
                 key: key,
-                baseURL: URL(string: MockServer.baseURL)!,
+                baseURL: baseURL,
                 appId: appId,
                 urlSession: StubURLProtocol.session(),
                 configCache: configCache,

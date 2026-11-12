@@ -101,8 +101,8 @@ every retry, so a retry never creates a second ticket.
 
 | Option | Default | |
 |---|---|---|
-| `key` | | The public SDK key. |
-| `baseURL` | `https://app.tododdle.com/api/support/sdk/v1` | |
+| `key` | | The public SDK key. It must start with `tdsk_pub_` or `tdsk_test_`; with any other key, every call fails with `INVALID_KEY` and nothing is sent. |
+| `baseURL` | `https://app.tododdle.com/api/support/sdk/v1` | Must be HTTPS. Plain HTTP is allowed only for `127.0.0.1`, `::1` and `localhost` (local test servers). Any other base URL makes every call fail with `INVALID_CONFIGURATION`, and nothing is sent. |
 | `appId` | `Bundle.main.bundleIdentifier` | Sent as `X-Tododdle-App-Id`. If the key lists allowed app IDs, others are refused. |
 | `urlSession` | `.shared` | |
 | `configCache` | `.memoryAndDisk` | `.memoryAndDisk` keeps the last good config in the app's caches folder, so the form opens offline. `.memory` keeps it for the client's lifetime only. |
@@ -133,7 +133,20 @@ Every failure is a `TododdleSupportError` with `code`, `httpStatus`, `message`, 
 `requestId` and `retryAfter`. Server codes are kept as sent, including codes added after this SDK
 was released, so handle unknown codes by `httpStatus`. The SDK adds `NETWORK_ERROR`,
 `INVALID_RESPONSE` and `HTTP_ERROR` (an error status with no readable body). Local validation
-failures use `INVALID_FIELDS` with no `httpStatus`, and nothing is sent.
+failures use `INVALID_FIELDS` with no `httpStatus`, and nothing is sent. A key without the
+`tdsk_pub_` or `tdsk_test_` prefix gives `INVALID_KEY`, and a base URL that is not allowed gives
+`INVALID_CONFIGURATION`; both have no `httpStatus` and send nothing.
+
+### Redirects and uploads
+
+- The SDK never follows redirects, even when your `urlSession` would. A 3xx answer fails with
+  `INVALID_RESPONSE` and the 3xx status in `httpStatus`.
+- Upload URLs from the server must be HTTPS. Plain HTTP is allowed only for a loopback host
+  (`127.0.0.1`, `::1`, `localhost`). Any other upload URL fails the report with
+  `INVALID_RESPONSE` before anything is uploaded.
+- The SDK sends the server's upload headers, but never `Host`, `Authorization`, `Cookie`,
+  `Proxy-*`, `Connection`, `Transfer-Encoding` or `Content-Length`. The SDK key never goes to the
+  upload host.
 
 `message` is plain English for logs. Show your own wording to people.
 

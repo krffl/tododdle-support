@@ -37,7 +37,7 @@ final class ClientBehaviourTests: XCTestCase {
             "response": .object(["status": .number(201)]),
         ])
         let server = MockServer(exchanges: [rule])
-        var request = URLRequest(url: URL(string: "http://mock.test/reports")!)
+        var request = URLRequest(url: URL(string: "\(MockServer.baseURL)/reports")!)
         request.httpMethod = "POST"
         request.setValue("tdsk_pub_x", forHTTPHeaderField: "X-Tododdle-Key")
         _ = server.handle(request, body: Data())
@@ -266,6 +266,143 @@ final class ClientBehaviourTests: XCTestCase {
         } catch let error as TododdleSupportError {
             XCTAssertEqual(error.code, .networkError)
             XCTAssertNil(error.httpStatus)
+        }
+    }
+
+    // MARK: Configuration, redirects and uploads
+
+    func testKeysWithoutAPublicOrTestPrefixSendNothing() async throws {
+        let server = MockServer(exchanges: [])
+        StubURLProtocol.server = server
+        for key in ["", "tdsk_secret_0000", "sk_live_0000", "TDSK_PUB_0000"] {
+            let client = Fixtures.client(key: key)
+            do {
+                _ = try await client.config()
+                XCTFail("Expected an error for \(key)")
+            } catch let error as TododdleSupportError {
+                XCTAssertEqual(error.code, .invalidKey)
+                XCTAssertNil(error.httpStatus)
+            }
+            do {
+                _ = try await client.report(validReport(), using: try Fixtures.config())
+                XCTFail("Expected an error for \(key)")
+            } catch let error as TododdleSupportError {
+                XCTAssertEqual(error.code, .invalidKey)
+            }
+        }
+        XCTAssertEqual(server.requestCount, 0)
+    }
+
+    func testTestKeysAreAccepted() async throws {
+        let server = MockServer(exchanges: [exchange("POST", "/reports", status: 201, body: received)])
+        StubURLProtocol.server = server
+        let receipt = try await Fixtures.client(key: "tdsk_test_TESTKEY0000000000000000000000000")
+            .report(validReport(), using: try Fixtures.config())
+        XCTAssertEqual(receipt.reportId, "rpt_AAAAAAAAAAAAAAAA0009")
+    }
+
+    func testPlainHTTPBaseURLIsRefusedUnlessLoopback() async throws {
+        let server = MockServer(exchanges: [])
+        StubURLProtocol.server = server
+        for base in ["http://app.tododdle.com/api/support/sdk/v1", "http://10.0.0.2", "ftp://127.0.0.1", "file:///tmp"] {
+            do {
+                _ = try await Fixtures.client(baseURL: URL(string: base)!).config()
+                XCTFail("Expected an error for \(base)")
+            } catch let error as TododdleSupportError {
+                XCTAssertEqual(error.code, .invalidConfiguration, base)
+            }
+        }
+        XCTAssertEqual(server.requestCount, 0)
+
+        for allowed in ["https://app.tododdle.com/api/support/sdk/v1", "http://127.0.0.1:8080", "http://localhost", "http://[::1]:9000"] {
+            XCTAssertTrue(TododdleSupport.isAllowedURL(URL(string: allowed)!), allowed)
+        }
+        for refused in ["http://example.com", "http://127.0.0.2", "http://localhost.example.com", "https:///no-host"] {
+            XCTAssertFalse(TododdleSupport.isAllowedURL(URL(string: refused)!), refused)
+        }
+    }
+
+    func testRedirectsAreNotFollowed() async throws {
+        let server = MockServer(exchanges: [
+            exchange("POST", "/reports", status: 302, headers: ["Location": "\(MockServer.baseURL)/elsewhere"]),
+        ])
+        StubURLProtocol.server = server
+        do {
+            _ = try await Fixtures.client().report(validReport(), using: try Fixtures.config())
+            XCTFail("Expected an error")
+        } catch let error as TododdleSupportError {
+            XCTAssertEqual(error.code, .invalidResponse)
+            XCTAssertEqual(error.httpStatus, 302)
+        }
+        XCTAssertEqual(server.requestCount, 1, "The redirect must not be followed")
+        XCTAssertTrue(server.allFailures.isEmpty, server.allFailures.joined(separator: "\n"))
+    }
+
+    private func awaitingUploads(uploadUrl: String, headers: [String: String]) -> JSONValue {
+        .object([
+            "reportId": .string("rpt_AAAAAAAAAAAAAAAA0009"),
+            "status": .string("awaiting_uploads"),
+            "submitToken": .string("st_0123456789abcdef0123456789abcdef"),
+            "expiresAt": .string("2099-01-01T00:00:00Z"),
+            "uploads": .array([.object([
+                "uploadUrl": .string(uploadUrl),
+                "headers": .object(headers.mapValues { .string($0) }),
+                "expiresAt": .string("2099-01-01T00:00:00Z"),
+            ])]),
+        ])
+    }
+
+    private func reportWithAttachment() -> Report {
+        var report = validReport()
+        report.attachments = [ReportAttachment(fileName: "note.txt", contentType: "text/plain", data: Data("hello".utf8))]
+        return report
+    }
+
+    func testUploadDropsHeadersTheServerMustNotSet() async throws {
+        let server = MockServer(exchanges: [
+            exchange("POST", "/reports", status: 201, body: awaitingUploads(uploadUrl: "{{baseUrl}}/upload/1", headers: [
+                "Content-Type": "text/plain",
+                "X-Upload-Tag": "kept",
+                "Authorization": "Bearer stolen",
+                "Cookie": "session=1",
+                "Proxy-Authorization": "Basic eA==",
+                "Host": "evil.example.com",
+                "Connection": "close",
+                "Transfer-Encoding": "chunked",
+                "Content-Length": "999",
+            ])),
+            exchange("PUT", "/upload/1", status: 200),
+            exchange("POST", "/reports/rpt_AAAAAAAAAAAAAAAA0009/submit", status: 200, body: received),
+        ])
+        StubURLProtocol.server = server
+        _ = try await Fixtures.client().report(reportWithAttachment(), using: try Fixtures.config())
+
+        let put = try XCTUnwrap(server.recorded.first { $0.method == "PUT" })
+        XCTAssertEqual(put.headers["content-type"], "text/plain")
+        XCTAssertEqual(put.headers["x-upload-tag"], "kept")
+        for name in ["authorization", "cookie", "proxy-authorization", "connection", "transfer-encoding"] {
+            XCTAssertNil(put.headers[name], name)
+        }
+        XCTAssertNotEqual(put.headers["host"], "evil.example.com")
+        XCTAssertNotEqual(put.headers["content-length"], "999")
+        XCTAssertTrue(TododdleSupport.isForbiddenUploadHeader("PROXY-Connection"))
+        XCTAssertTrue(TododdleSupport.isForbiddenUploadHeader("content-length"))
+        XCTAssertFalse(TododdleSupport.isForbiddenUploadHeader("Content-Type"))
+    }
+
+    func testUploadURLMustBeHTTPSEvenWithALoopbackBaseURL() async throws {
+        for uploadUrl in ["http://uploads.example.com/upload/1", "ftp://127.0.0.1/upload/1", "not a url"] {
+            let server = MockServer(exchanges: [
+                exchange("POST", "/reports", status: 201, body: awaitingUploads(uploadUrl: uploadUrl, headers: ["Content-Type": "text/plain"])),
+            ])
+            StubURLProtocol.server = server
+            do {
+                _ = try await Fixtures.client().report(reportWithAttachment(), using: try Fixtures.config())
+                XCTFail("Expected an error for \(uploadUrl)")
+            } catch let error as TododdleSupportError {
+                XCTAssertEqual(error.code, .invalidResponse, uploadUrl)
+            }
+            XCTAssertEqual(server.requestCount, 1, uploadUrl)
         }
     }
 

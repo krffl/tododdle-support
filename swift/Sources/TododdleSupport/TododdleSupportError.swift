@@ -37,6 +37,9 @@ public struct TododdleSupportError: Error, Sendable, Equatable, LocalizedError {
         public static let invalidResponse: Code = "INVALID_RESPONSE"
         /// An error status without a readable error body.
         public static let httpError: Code = "HTTP_ERROR"
+        /// The client's configuration is not allowed, for example a base URL that is not HTTPS.
+        /// Nothing was sent.
+        public static let invalidConfiguration: Code = "INVALID_CONFIGURATION"
     }
 
     public let code: Code
