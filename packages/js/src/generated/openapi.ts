@@ -41,7 +41,9 @@ export interface paths {
          *
          *     With attachments the report waits for its files (`201`, status `awaiting_uploads`).
          *     Upload each file with an HTTP `PUT` of the raw bytes to its `uploadUrl`, with exactly the
-         *     returned `headers`. Then call `submit`. Reports that are not submitted within
+         *     returned `headers`. Then call `submit`. The SDKs refuse an `uploadUrl` that is not HTTPS
+         *     (plain HTTP only for a loopback host) and never send `Host`, `Authorization`, `Cookie`,
+         *     `Proxy-*`, `Connection`, `Transfer-Encoding` or `Content-Length` from `headers`. Reports that are not submitted within
          *     `expiresAt` are discarded with their files.
          *
          *     Sending the same `idempotencyKey` again with the same key returns the first result
@@ -100,7 +102,10 @@ export interface components {
             project: {
                 /** @description Display name for the dialog title. */
                 name: string;
-                /** Format: uri */
+                /**
+                 * Format: uri
+                 * @description The SDKs show it only when it is HTTPS.
+                 */
                 logoUrl?: string | null;
             };
             form: {
@@ -201,7 +206,7 @@ export interface components {
             osVersion?: string;
             deviceModel?: string;
             locale?: string;
-            /** @description Screen or route name, without query string. */
+            /** @description Screen or route name, without query string or fragment. */
             screen?: string;
             /** @description App-defined key/value context, shown on the ticket as is. */
             extra?: {

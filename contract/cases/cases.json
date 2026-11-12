@@ -1,5 +1,5 @@
 {
-  "$comment": "Shared conformance cases. Every SDK runs all of them against a local mock server that replays `exchanges` in order, then checks `expect`. A request is matched by method and path; `request.must` lists what the SDK has to send. `{{baseUrl}}` is the mock server's origin. `minDelayMs` is measured from the first request of the case to the last. `report` cases have no GET /config exchange: pass the case `config` to the SDK directly. Field errors in `fields` are keyed by `title`, `description`, `type` or the custom field key.",
+  "$comment": "Shared conformance cases. Every SDK runs all of them against a local mock server that replays `exchanges` in order, then checks `expect`. A request is matched by method and path; `request.must` lists what the SDK has to send. `{{baseUrl}}` is the mock server's origin. `minDelayMs` is measured from the first request of the case to the last. `report` cases have no GET /config exchange: pass the case `config` to the SDK directly. Field errors in `fields` are keyed by `title`, `description`, `type` or the custom field key. A case's `screen`, when set, replaces `report.context.screen` for that case. Upload URLs must use HTTPS; plain HTTP is allowed only for a loopback host (127.0.0.1, ::1, localhost), which is why the mock server's `{{baseUrl}}` uploads work.",
   "key": "tdsk_pub_TESTKEY0000000000000000000000000",
   "config": {
     "project": { "name": "Mosslight", "logoUrl": null },
@@ -145,6 +145,39 @@
           "response": { "status": 400, "body": { "error": { "code": "SOMETHING_NEW", "message": "New code." } } } }
       ],
       "expect": { "ok": false, "errorCode": "SOMETHING_NEW", "httpStatus": 400, "requests": 1 }
+    },
+    {
+      "name": "screen_drops_query_string",
+      "operation": "report",
+      "screen": "Favourites?tab=recent&user=42",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports", "must": { "body": { "context.screen": "Favourites" } } },
+          "response": { "status": 201, "body": { "reportId": "rpt_AAAAAAAAAAAAAAAA0006", "status": "received" } } }
+      ],
+      "expect": { "ok": true, "reportId": "rpt_AAAAAAAAAAAAAAAA0006" }
+    },
+    {
+      "name": "screen_drops_fragment",
+      "operation": "report",
+      "screen": "Favourites#token=abc",
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports", "must": { "body": { "context.screen": "Favourites" } } },
+          "response": { "status": 201, "body": { "reportId": "rpt_AAAAAAAAAAAAAAAA0007", "status": "received" } } }
+      ],
+      "expect": { "ok": true, "reportId": "rpt_AAAAAAAAAAAAAAAA0007" }
+    },
+    {
+      "name": "upload_url_must_use_https",
+      "operation": "reportWithAttachment",
+      "attachment": { "fileName": "screenshot.png", "contentType": "image/png", "bytesBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" },
+      "exchanges": [
+        { "request": { "method": "POST", "path": "/reports" },
+          "response": { "status": 201, "body": {
+            "reportId": "rpt_AAAAAAAAAAAAAAAA0008", "status": "awaiting_uploads",
+            "submitToken": "st_0123456789abcdef0123456789abcdef", "expiresAt": "2099-01-01T00:00:00Z",
+            "uploads": [ { "uploadUrl": "http://uploads.example.com/upload/8", "headers": { "Content-Type": "image/png" }, "expiresAt": "2099-01-01T00:00:00Z" } ] } } }
+      ],
+      "expect": { "ok": false, "errorCode": "INVALID_RESPONSE", "requests": 1 }
     }
   ],
   "retryPolicy": {

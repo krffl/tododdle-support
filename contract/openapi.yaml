@@ -73,7 +73,9 @@ paths:
 
         With attachments the report waits for its files (`201`, status `awaiting_uploads`).
         Upload each file with an HTTP `PUT` of the raw bytes to its `uploadUrl`, with exactly the
-        returned `headers`. Then call `submit`. Reports that are not submitted within
+        returned `headers`. Then call `submit`. The SDKs refuse an `uploadUrl` that is not HTTPS
+        (plain HTTP only for a loopback host) and never send `Host`, `Authorization`, `Cookie`,
+        `Proxy-*`, `Connection`, `Transfer-Encoding` or `Content-Length` from `headers`. Reports that are not submitted within
         `expiresAt` are discarded with their files.
 
         Sending the same `idempotencyKey` again with the same key returns the first result
@@ -151,7 +153,9 @@ components:
       description: |
         A project's public SDK key, `tdsk_pub_` followed by 32 letters and digits. It is safe to
         ship inside an app. Test keys (`tdsk_test_…`) work the same way, and their tickets are
-        marked as test reports.
+        marked as test reports. The SDKs refuse a key with any other prefix, and refuse a base URL
+        that is not HTTPS unless its host is loopback (127.0.0.1, ::1, localhost). The SDKs do
+        not follow redirects.
   parameters:
     AppId:
       name: X-Tododdle-App-Id
@@ -244,7 +248,7 @@ components:
           required: [name]
           properties:
             name: { type: string, description: Display name for the dialog title. }
-            logoUrl: { type: [string, 'null'], format: uri }
+            logoUrl: { type: [string, 'null'], format: uri, description: The SDKs show it only when it is HTTPS. }
         form:
           type: object
           required: [version, types, fields, attachments]
@@ -372,7 +376,7 @@ components:
         osVersion: { type: string, maxLength: 50 }
         deviceModel: { type: string, maxLength: 100 }
         locale: { type: string, maxLength: 35 }
-        screen: { type: string, maxLength: 200, description: 'Screen or route name, without query string.' }
+        screen: { type: string, maxLength: 200, description: 'Screen or route name, without query string or fragment.' }
         extra:
           type: object
           maxProperties: 20
