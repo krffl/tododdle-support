@@ -24,8 +24,8 @@
     <p>
       Build the packages (<code>npm run build</code> at the repository root), serve the repository root (<code
         >npx serve .</code
-      >) and open <code>/examples/web/?key=tdsk_test_…</code>. Add the page's origin to the key's allowed origins in
-      ToDoddle.
+      >), set <code>KEY</code> in this file to your <code>tdsk_test_…</code> key and open <code>/examples/web/</code>.
+      Add the page's origin to the key's allowed origins in ToDoddle.
     </p>
     <p>
       <button id="dialog" type="button">Report a problem</button>
@@ -37,11 +37,16 @@
       import { createTododdleSupport, isTododdleSupportError } from '../../packages/js/dist/index.js';
       import { openReportDialog } from '../../packages/js/dist/dialog.js';
 
-      const params = new URLSearchParams(location.search);
+      // Put your project's test key here. The key and base URL are never read from the page
+      // address: a crafted link could otherwise send reports, or the key, to another server.
+      const KEY = 'tdsk_test_REPLACE_ME';
+      // Leave undefined for ToDoddle, or set a local server such as 'http://localhost:3000/api/support/sdk/v1'.
+      const BASE_URL = undefined;
+
       const output = document.getElementById('output');
       const support = createTododdleSupport({
-        key: params.get('key') ?? 'tdsk_test_REPLACE_ME',
-        baseUrl: params.get('baseUrl') ?? undefined,
+        key: KEY,
+        baseUrl: BASE_URL,
         storage: window.localStorage,
         offlineQueue: true,
         defaultContext: { platform: 'web', appVersion: 'example' },
