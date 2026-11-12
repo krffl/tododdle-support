@@ -2,8 +2,8 @@ extends "res://tests/test_base.gd"
 ## The shared conformance cases from contract/cases/cases.json, run against the mock server.
 
 
-func test_there_are_11_shared_cases() -> void:
-	check_eq((suite["cases"] as Array).size(), 11, "shared case count")
+func test_there_are_14_shared_cases() -> void:
+	check_eq((suite["cases"] as Array).size(), 14, "shared case count")
 
 
 func test_retry_policy_matches_cases() -> void:
@@ -50,10 +50,10 @@ func _run_case(test_case: Dictionary) -> void:
 			config_result = await client.get_config()
 			result = config_result
 		"report":
-			result = await client.send_report(shared_report(), shared_config())
+			result = await client.send_report(_case_report(test_case), shared_config())
 		"reportWithAttachment":
 			var attachment: Dictionary = test_case["attachment"]
-			var report := shared_report()
+			var report := _case_report(test_case)
 			report.add_attachment(
 				TododdleSupportAttachment.new(
 					Marshalls.base64_to_raw(attachment["bytesBase64"]), attachment["fileName"], attachment["contentType"]
@@ -105,3 +105,11 @@ func _run_case(test_case: Dictionary) -> void:
 		var last: Dictionary = requests[requests.size() - 1]
 		var delay := float(last["at"]) - float(first["at"])
 		check(delay >= float(want["minDelayMs"]), "waited %d ms, expected at least %d" % [delay, int(want["minDelayMs"])])
+
+
+## The shared report, with the case's `screen` when it has one.
+func _case_report(test_case: Dictionary) -> TododdleSupportReport:
+	var report := shared_report()
+	if test_case.get("screen") is String:
+		report.screen = test_case["screen"]
+	return report

@@ -60,7 +60,10 @@ func test_form_is_built_from_the_config() -> void:
 	check_eq((dialog._inputs["area"] as OptionButton).item_count, 4, "choose + 3 options")
 	check(dialog._inputs["steps"] is TextEdit, "LONG_TEXT field")
 	check_eq(dialog._attachment_checks.size(), 2, "two attachments offered")
-	check(dialog._attachment_checks[0].button_pressed and dialog._attachment_checks[1].button_pressed, "ticked by default")
+	check(dialog._attachment_checks[0].button_pressed, "the image is ticked by default")
+	check(not dialog._attachment_checks[1].button_pressed, "the text log is unticked by default")
+	check_eq(dialog._attachment_checks[1].text, "hitch_log.txt (%s)" % String.humanize_size(18), "file size shown")
+	check(dialog._attachment_checks[0].text.ends_with("(%s)" % String.humanize_size(_attachments()[0].get_size())), "image size shown")
 	check_mock_clean(await mock_state())
 	dialog.close()
 
@@ -142,6 +145,7 @@ func test_unticked_attachment_is_not_sent() -> void:
 	dialog.set_value("description", "Hitch.")
 	dialog.set_value("area", "Other")
 	dialog.set_attachment_included(0, false)
+	dialog.set_attachment_included(1, true)
 	var result := await dialog.submit()
 	check(result.ok, str(result))
 	var state := await mock_state()
@@ -149,6 +153,21 @@ func test_unticked_attachment_is_not_sent() -> void:
 	var declared: Array = body["attachments"]
 	check_eq(declared.size(), 1, "one attachment")
 	check_eq(declared[0]["fileName"], "hitch_log.txt", "the log only")
+	dialog.close()
+
+
+func test_text_attachment_is_not_sent_unless_ticked() -> void:
+	await load_exchanges([CONFIG_OK, _received("rpt_CCCCCCCCCCCCCCCC0003")])
+	var dialog := await _open_dialog(_attachments())
+	dialog.set_value("description", "Hitch.")
+	dialog.set_value("area", "Other")
+	var result := await dialog.submit()
+	check(result.ok, str(result))
+	var state := await mock_state()
+	var body: Dictionary = request_json((state["requests"] as Array)[1])
+	var declared: Array = body["attachments"]
+	check_eq(declared.size(), 1, "one attachment")
+	check_eq(declared[0]["contentType"], "image/png", "the image only")
 	dialog.close()
 
 

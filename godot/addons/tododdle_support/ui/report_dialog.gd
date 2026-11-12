@@ -386,13 +386,17 @@ func _build_attachments() -> void:
 	_attachments_label.text = attachments_text
 	_attachments_label.visible = not _offered.is_empty()
 	_attachment_list.visible = not _offered.is_empty()
+	# Images start ticked. Text such as logs starts unticked, so the player opts in to sending it.
+	var ticked := 0
 	for i in _offered.size():
 		var attachment := _offered[i]
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 8)
 		var check := CheckBox.new()
 		check.text = "%s (%s)" % [attachment.file_name, String.humanize_size(attachment.get_size())]
-		check.button_pressed = i < maxi(config.attachments_max_count, 0)
+		check.button_pressed = attachment.is_image() and ticked < maxi(config.attachments_max_count, 0)
+		if check.button_pressed:
+			ticked += 1
 		check.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		check.clip_text = true
 		row.add_child(check)

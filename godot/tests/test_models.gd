@@ -111,6 +111,10 @@ func test_context_is_filled_and_clipped() -> void:
 	check_eq(context["appVersion"], "9.9.9", "client app version")
 	check_eq(str(context["build"]).length(), 50, "build clipped to 50")
 	check_eq(context["screen"], "Level 3", "query string removed")
+	report.screen = "Level 3#token=abc"
+	check_eq(client.build_context(report)["screen"], "Level 3", "fragment removed")
+	report.screen = "Level 3#a?b"
+	check_eq(client.build_context(report)["screen"], "Level 3", "fragment and query removed")
 	check_eq(context["osName"], OS.get_name(), "osName")
 	check(not str(context["locale"]).contains("_"), "locale uses a hyphen")
 	check(str(context["locale"]).length() <= 35, "locale length")
@@ -239,3 +243,44 @@ func test_example_scene_runs_headless() -> void:
 func test_project_keeps_text_resources_as_text_on_export() -> void:
 	# Godot 4.7's binary conversion on export can drop data; keep it off.
 	check_eq(ProjectSettings.get_setting("editor/export/convert_text_resources_to_binary", true), false, "convert_text_resources_to_binary")
+
+
+func test_allowed_urls_are_https_or_loopback_http() -> void:
+	for url: String in [
+		"https://app.tododdle.com/api/support/sdk/v1",
+		"https://uploads.example.com/x?sig=1",
+		"http://127.0.0.1:8080/x",
+		"http://[::1]:9000/x",
+		"http://localhost/x",
+		"http://LOCALHOST:3000",
+	]:
+		check(TododdleSupport.is_allowed_url(url), "allowed: %s" % url)
+	for url: String in [
+		"http://app.tododdle.com/api",
+		"http://10.0.0.5/x",
+		"http://localhost.example.com/x",
+		"http://127.0.0.1.example.com/x",
+		"ftp://example.com/x",
+		"not a url",
+		"",
+	]:
+		check(not TododdleSupport.is_allowed_url(url), "refused: %s" % url)
+
+
+func test_upload_headers_drop_sensitive_names() -> void:
+	var sent := TododdleSupport.upload_headers_to_send(
+		{
+			"Content-Type": "image/png",
+			"x-amz-meta-test": "yes",
+			"Host": "evil.example",
+			"authorization": "Bearer x",
+			"Cookie": "a=b",
+			"Proxy-Authorization": "Basic x",
+			"Proxy-Connection": "keep-alive",
+			"Connection": "close",
+			"Transfer-Encoding": "chunked",
+			"Content-Length": "1",
+		}
+	)
+	check_eq(sent, {"Content-Type": "image/png", "x-amz-meta-test": "yes"}, "kept headers")
+	check_eq(TododdleSupport.upload_headers_to_send(null), {}, "no headers")

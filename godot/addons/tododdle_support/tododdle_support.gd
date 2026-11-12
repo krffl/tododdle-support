@@ -34,6 +34,14 @@ const _Validation := preload("validation.gd")
 const _CACHE_DIR := "user://tododdle_support"
 const _MAX_EXTRA := 20
 const _MAX_EXTRA_VALUE := 500
+## The key prefixes the SDK accepts.
+const KEY_PREFIXES: PackedStringArray = ["tdsk_pub_", "tdsk_test_"]
+## Hosts that may use plain HTTP, for local test servers.
+const LOOPBACK_HOSTS: PackedStringArray = ["127.0.0.1", "::1", "localhost"]
+## Upload headers from the server that the client never sends.
+const _BLOCKED_UPLOAD_HEADERS: PackedStringArray = [
+	"host", "authorization", "cookie", "connection", "transfer-encoding", "content-length"
+]
 
 ## The public SDK key.
 var key: String = ""
@@ -141,9 +149,10 @@ func build_context(report: TododdleSupportReport) -> Dictionary:
 			_put(context, "deviceModel", model, 100)
 		_put(context, "locale", _locale_tag(OS.get_locale()), 35)
 	var screen := report.screen
-	var query := screen.find("?")
-	if query >= 0:
-		screen = screen.left(query)
+	for separator: String in ["?", "#"]:
+		var at := screen.find(separator)
+		if at >= 0:
+			screen = screen.left(at)
 	_put(context, "screen", screen, 200)
 	var extra: Dictionary = {}
 	for name: Variant in report.extra:
@@ -162,8 +171,9 @@ func build_context(report: TododdleSupportReport) -> Dictionary:
 
 
 func _load_config() -> TododdleSupportConfigResult:
-	if key.is_empty():
-		return TododdleSupportConfigResult.failed(_not_configured())
+	var problem := _config_problem()
+	if problem != null:
+		return TododdleSupportConfigResult.failed(problem)
 	_load_cache()
 	var headers: Dictionary = {}
 	if not _cached_etag.is_empty() and not _cached_body.is_empty():
@@ -241,8 +251,9 @@ func clear_config_cache() -> void:
 func _send_report(report: TododdleSupportReport, config: TododdleSupportConfig) -> TododdleSupportResult:
 	if report == null:
 		return TododdleSupportResult.failure(TododdleSupportResult.INVALID_FIELDS, "No report to send.")
-	if key.is_empty():
-		return _not_configured()
+	var problem := _config_problem()
+	if problem != null:
+		return problem
 
 	var form_version := report.form_version
 	if config != null:
@@ -284,15 +295,15 @@ func _send_report(report: TododdleSupportReport, config: TododdleSupportConfig) 
 	var uploads: Variant = response.get("uploads")
 	if not submit_token is String or not uploads is Array or (uploads as Array).size() != report.attachments.size():
 		return _invalid_response("the uploads do not match the declared attachments")
-	for i in report.attachments.size():
-		var upload: Variant = (uploads as Array)[i]
+	# Check every upload before sending any file.
+	for upload: Variant in uploads:
 		if not upload is Dictionary or not (upload as Dictionary).get("uploadUrl") is String:
 			return _invalid_response("an upload has no uploadUrl")
-		var upload_headers: Dictionary = {}
-		var raw_headers: Variant = (upload as Dictionary).get("headers")
-		if raw_headers is Dictionary:
-			for name: Variant in raw_headers:
-				upload_headers[str(name)] = str(raw_headers[name])
+		if not is_allowed_url(str((upload as Dictionary)["uploadUrl"])):
+			return _invalid_response("the upload URL must use HTTPS")
+	for i in report.attachments.size():
+		var upload: Dictionary = (uploads as Array)[i]
+		var upload_headers := upload_headers_to_send(upload.get("headers"))
 		var put := await _send(
 			"PUT",
 			str(upload["uploadUrl"]),
@@ -531,6 +542,49 @@ static func _locale_tag(locale: String) -> String:
 		if at >= 0:
 			tag = tag.left(at)
 	return tag.replace("_", "-")
+
+
+## Whether [param url] is HTTPS, or plain HTTP to a loopback host (127.0.0.1, ::1, localhost).
+static func is_allowed_url(url: String) -> bool:
+	var target := _Http._parse_url(url)
+	if target.is_empty():
+		return false
+	return target["tls"] or LOOPBACK_HOSTS.has(str(target["host"]).to_lower())
+
+
+## The server-supplied upload [param headers] the client sends: without [code]Host[/code],
+## [code]Authorization[/code], [code]Cookie[/code], [code]Proxy-*[/code], [code]Connection[/code],
+## [code]Transfer-Encoding[/code] and [code]Content-Length[/code].
+static func upload_headers_to_send(headers: Variant) -> Dictionary:
+	var out: Dictionary = {}
+	if not headers is Dictionary:
+		return out
+	for name: Variant in headers:
+		var lower := str(name).strip_edges().to_lower()
+		if _BLOCKED_UPLOAD_HEADERS.has(lower) or lower.begins_with("proxy-"):
+			continue
+		out[str(name)] = str(headers[name])
+	return out
+
+
+## Null when the key and base URL can be used, otherwise a NOT_CONFIGURED result.
+func _config_problem() -> TododdleSupportResult:
+	if key.is_empty():
+		return _not_configured()
+	var known_prefix := false
+	for prefix in KEY_PREFIXES:
+		if key.begins_with(prefix):
+			known_prefix = true
+	if not known_prefix:
+		return TododdleSupportResult.failure(
+			TododdleSupportResult.NOT_CONFIGURED, "The key must start with tdsk_pub_ or tdsk_test_."
+		)
+	if not is_allowed_url(base_url):
+		return TododdleSupportResult.failure(
+			TododdleSupportResult.NOT_CONFIGURED,
+			"The base URL must use HTTPS. Plain HTTP is allowed only for 127.0.0.1, ::1 and localhost."
+		)
+	return null
 
 
 static func _not_configured() -> TododdleSupportResult:

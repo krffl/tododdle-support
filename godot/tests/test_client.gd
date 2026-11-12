@@ -84,7 +84,7 @@ func test_report_with_screenshot_and_log() -> void:
 						"submitToken": "st_0123456789abcdef0123456789abcdef",
 						"expiresAt": "2099-01-01T00:00:00Z",
 						"uploads": [
-							{"uploadUrl": "{{baseUrl}}/upload/a?sig=1", "headers": {"Content-Type": "image/png", "x-amz-meta-test": "yes"}, "expiresAt": "2099-01-01T00:00:00Z"},
+							{"uploadUrl": "{{baseUrl}}/upload/a?sig=1", "headers": {"Content-Type": "image/png", "x-amz-meta-test": "yes", "Authorization": "Bearer leaked", "Cookie": "session=1", "Proxy-Authorization": "Basic eA==", "Host": "evil.example"}, "expiresAt": "2099-01-01T00:00:00Z"},
 							{"uploadUrl": "{{baseUrl}}/upload/b", "headers": {"Content-Type": "text/plain"}, "expiresAt": "2099-01-01T00:00:00Z"},
 						],
 					},
@@ -118,6 +118,71 @@ func test_report_with_screenshot_and_log() -> void:
 		if str(request["path"]).begins_with("/upload/"):
 			var headers: Dictionary = request["headers"]
 			check(not headers.has("x-tododdle-key") and not headers.has("x-tododdle-sdk"), "uploads carry no SDK headers")
+			for blocked: String in ["authorization", "cookie", "proxy-authorization"]:
+				check(not headers.has(blocked), "upload drops the server's %s header" % blocked)
+			check(str(headers.get("host", "")).begins_with("127.0.0.1"), "upload keeps its own Host")
+
+
+func test_upload_url_over_plain_http_is_refused() -> void:
+	await load_exchanges(
+		[
+			{
+				"request": {"method": "POST", "path": "/reports"},
+				"response": {
+					"status": 201,
+					"body": {
+						"reportId": "rpt_BBBBBBBBBBBBBBBB0009",
+						"status": "awaiting_uploads",
+						"submitToken": "st_0123456789abcdef0123456789abcdef",
+						"expiresAt": "2099-01-01T00:00:00Z",
+						"uploads": [{"uploadUrl": "http://10.0.0.5/upload/x", "headers": {}, "expiresAt": "2099-01-01T00:00:00Z"}],
+					},
+				},
+			},
+		]
+	)
+	var report := shared_report().add_attachment(TododdleSupportAttachment.from_text("hello\n", "note.txt"))
+	var result := await new_client().send_report(report, shared_config())
+	check_eq(result.error_code, TododdleSupportResult.INVALID_RESPONSE, "code")
+	check_eq((( await mock_state())["requests"] as Array).size(), 1, "no upload sent")
+
+
+func test_redirect_is_not_followed() -> void:
+	await load_exchanges(
+		[
+			{
+				"request": {"method": "POST", "path": "/reports"},
+				"response": {"status": 302, "headers": {"Location": "{{baseUrl}}/elsewhere"}},
+			},
+		]
+	)
+	var result := await _fast(new_client()).send_report(shared_report(), shared_config())
+	check_eq(result.error_code, TododdleSupportResult.HTTP_ERROR, "code")
+	check_eq(result.http_status, 302, "status")
+	check_eq(((await mock_state())["requests"] as Array).size(), 1, "one request, no redirect followed")
+
+
+func test_key_with_unknown_prefix_is_not_configured() -> void:
+	await load_exchanges([])
+	for bad_key: String in ["pk_live_123", "tdsk_secret_123", "TDSK_PUB_123"]:
+		var client := new_client()
+		client.key = bad_key
+		var result := await client.send_report(shared_report(), shared_config())
+		check_eq(result.error_code, TododdleSupportResult.NOT_CONFIGURED, "report with %s" % bad_key)
+		var config_result := await client.get_config()
+		check_eq(config_result.error_code, TododdleSupportResult.NOT_CONFIGURED, "config with %s" % bad_key)
+	var test_key := new_client()
+	test_key.key = "tdsk_test_ABC"
+	check(test_key._config_problem() == null, "tdsk_test_ keys are accepted")
+	check_eq(((await mock_state())["requests"] as Array).size(), 0, "nothing sent")
+
+
+func test_plain_http_base_url_is_not_configured() -> void:
+	var client := new_client("http://api.example.com/api/support/sdk/v1")
+	var result := await client.send_report(shared_report(), shared_config())
+	check_eq(result.error_code, TododdleSupportResult.NOT_CONFIGURED, "report")
+	var config_result := await client.get_config()
+	check_eq(config_result.error_code, TododdleSupportResult.NOT_CONFIGURED, "config")
 
 
 func test_field_errors_from_422_invalid_fields() -> void:

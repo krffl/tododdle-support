@@ -32,7 +32,11 @@ adds the settings below to Project Settings; the addon works without it.
 
 Create a public SDK key in your ToDoddle Support project settings. A public key (`tdsk_pub_…`) can
 only read the report form and send reports, so it is safe to ship inside a game. Test keys
-(`tdsk_test_…`) work the same way and mark their tickets as test reports.
+(`tdsk_test_…`) work the same way and mark their tickets as test reports. The client refuses any
+other key with `NOT_CONFIGURED`, and sends nothing.
+
+The base URL must use HTTPS. Plain HTTP works only for a loopback host (`127.0.0.1`, `::1`,
+`localhost`), for a local test server. Any other base URL fails with `NOT_CONFIGURED`.
 
 Set these in **Project Settings > General > Tododdle Support**:
 
@@ -75,7 +79,8 @@ func _on_report_pressed() -> void:
 
 The dialog loads `GET /config` and shows the project's report types, title, description and custom
 fields (short text, long text and select), with the project's wording. Each attachment has a tick
-box and a small preview, so the player can leave it out. The dialog checks required fields before
+box, its file size and a small preview, so the player can leave it out. Images start ticked. Text
+attachments such as logs start unticked, so the player chooses to send them. The dialog checks required fields before
 sending, shows field errors from the server next to each field, and ends with the project's
 thank-you message. If the form changed on the server (`FIELDS_CHANGED`), it reloads the form and
 keeps what the player typed.
@@ -144,7 +149,11 @@ elif result.error_code == TododdleSupportResult.RATE_LIMITED:
   has `config` and `from_cache`.
 - `send_report(report, config = null) -> TododdleSupportResult`. Checks the report against the
   config, creates it with the report's idempotency key, uploads each attachment to its `uploadUrl`
-  with exactly the returned headers, then submits it. Without `config` it loads the config first.
+  with the returned headers, then submits it. An `uploadUrl` that is not HTTPS (plain HTTP only for
+  a loopback host) fails with `INVALID_RESPONSE` before any file is sent. The client never sends
+  `Host`, `Authorization`, `Cookie`, `Proxy-*`, `Connection`, `Transfer-Encoding` or
+  `Content-Length` from the returned headers. It does not follow redirects: a 3xx answer fails
+  with `HTTP_ERROR`. Without `config` it loads the config first.
 - `validate_report(report, config = null) -> Dictionary`: the same checks, without sending.
 - `build_context(report) -> Dictionary`: the context that will be sent.
 - `clear_config_cache()`, `get_cached_config()`.
@@ -183,7 +192,7 @@ The client fills in:
 - `osName` and `osVersion`: `OS.get_name()` and `OS.get_version()`
 - `deviceModel`: `OS.get_model_name()` (left out on desktop, where it is a generic value)
 - `locale`: `OS.get_locale()`, for example `en-GB`
-- `screen`: what you set, without any query string
+- `screen`: what you set, without any query string (`?…`) or fragment (`#…`)
 - `extra`: what you set. Up to 20 entries; values are converted to text and cut to 500 characters.
 
 Values are cut to the contract's length limits. Set `collect_device_context = false` to send only
@@ -207,6 +216,10 @@ content type (`image/png`, `image/jpeg`, `image/webp`, `image/gif`, `application
 `add_attachment()` on the report and the dialog ignores null, so you can pass the helpers straight
 in.
 
+**Scrub logs before you attach them.** A log goes to your ToDoddle project as it is. Remove player
+names, email addresses, account IDs, tokens, IP addresses and file paths with user names before you
+pass it to `from_text_file()` or `from_text()`.
+
 ## Privacy
 
 - Nothing is collected unless the game passes it: no screenshots, logs, player names or IDs.
@@ -214,7 +227,8 @@ in.
   `collect_device_context = false`.
 - Reporter details (`reporter_name`, `reporter_email`, `customer_reference`) are optional and
   unverified. ToDoddle never emails the reporter.
-- The dialog lets the player untick every attachment before sending.
+- The dialog lets the player untick every attachment before sending. Text attachments start
+  unticked.
 - The only file written is the cached report form in `user://tododdle_support/`.
 
 ## Web exports
